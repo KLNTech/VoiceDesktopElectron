@@ -1,25 +1,117 @@
+import type { TurnFailure } from '../../domain/model/turn'
+import { TalkButton } from './components/TalkButton'
+import { t } from './i18n'
+import { useTurn } from './useTurn'
+
 /**
- * The S1 shell: a window that opens, and a version badge that proves which build is on screen.
+ * The iteration-1 shell: hold, speak, release, and your words appear as text.
  *
- * It is deliberately not a sketch of the interface. The design canvas ("Voice Desktop", 0.3.1)
- * is implemented in one pass in S8, against the approved artboards — drawing an approximation
- * of it here would mean designing the UI twice and throwing one away.
+ * This is not the approved design. The canvas ("Voice Desktop", 0.3.1) is implemented in one
+ * pass in S8, against its fifteen artboards — approximating it here would mean designing the
+ * interface twice and throwing one away.
  */
 export function App(): React.JSX.Element {
-  const stage = import.meta.env.DEV ? 'dev' : 'build'
+  const { state, level, turns, notice, beginHold, endHold, dismiss } = useTurn()
+  const recording = state.k === 'recording'
+  const busy = state.k === 'transcribing' || state.k === 'thinking' || state.k === 'speaking'
 
   return (
     <main className="shell">
       <header className="bar">
-        <h1>VoiceDesk</h1>
+        <h1>{t('app.name')}</h1>
         <span className="version">
-          v{__APP_VERSION__} · {stage}
+          v{__APP_VERSION__} · {import.meta.env.DEV ? 'dev' : 'build'}
         </span>
+        <span className={`state state-${state.k}`}>{stateLabel(state.k)}</span>
       </header>
-      <p className="note">
-        Toolchain and window only. Push-to-talk capture and on-device transcription arrive in this
-        same iteration; the interface is implemented against the design canvas afterwards.
-      </p>
+
+      <section className="turns">
+        {turns.length === 0 && state.k !== 'error' ? (
+          <p className="empty">{t('turn.empty')}</p>
+        ) : (
+          turns.map((turn) => (
+            <article key={turn.id} className="turn">
+              <span className="who">{t('turn.you')}</span>
+              <p>{turn.you}</p>
+            </article>
+          ))
+        )}
+
+        {state.k === 'error' ? <Failure failure={state.failure} onDismiss={dismiss} /> : null}
+      </section>
+
+      <footer className="foot">
+        {notice === 'tooShort' ? <p className="notice">{t('talk.tooShort')}</p> : null}
+        <TalkButton
+          recording={recording}
+          busy={busy}
+          level={level}
+          onHoldStart={beginHold}
+          onHoldEnd={endHold}
+        />
+      </footer>
     </main>
   )
+}
+
+function stateLabel(k: string): string {
+  switch (k) {
+    case 'recording':
+      return t('state.recording')
+    case 'transcribing':
+      return t('state.transcribing')
+    case 'thinking':
+      return t('state.thinking')
+    case 'speaking':
+      return t('state.speaking')
+    default:
+      return t('state.idle')
+  }
+}
+
+/**
+ * Failures are shown by KIND, and the split that matters is "your machine needs fixing" versus
+ * "this turn failed" — the two need different actions from the user, and collapsing them sends
+ * someone to debug the wrong thing.
+ */
+function Failure({
+  failure,
+  onDismiss,
+}: {
+  failure: TurnFailure
+  onDismiss: () => void
+}): React.JSX.Element {
+  const { title, body, yours } = describe(failure)
+  return (
+    <div className={yours ? 'failure is-setup' : 'failure'} role="alert">
+      <strong>{title}</strong>
+      <p>{body}</p>
+      <button type="button" onClick={onDismiss}>
+        {t('err.dismiss')}
+      </button>
+    </div>
+  )
+}
+
+function describe(failure: TurnFailure): { title: string; body: string; yours: boolean } {
+  switch (failure.kind) {
+    case 'mic-denied':
+      return { title: t('err.mic.deniedTitle'), body: t('err.mic.deniedBody'), yours: true }
+    case 'no-microphone':
+      return { title: t('err.mic.noneTitle'), body: t('err.mic.noneBody'), yours: true }
+    case 'setup':
+      return { title: t('err.setupTitle'), body: failure.hint, yours: true }
+    case 'transcribe-failed':
+      return { title: t('err.transcribeTitle'), body: failure.stderr, yours: false }
+    case 'agent-failed':
+      return { title: t('err.agentTitle'), body: failure.stderr, yours: false }
+    case 'timeout':
+      return {
+        title: t('err.timeoutTitle'),
+        body: `Stopped after ${Math.round(failure.afterMs / 1000)}s.`,
+        yours: false,
+      }
+    case 'empty-speech':
+      return { title: t('err.emptyTitle'), body: t('err.emptyBody'), yours: false }
+  }
 }

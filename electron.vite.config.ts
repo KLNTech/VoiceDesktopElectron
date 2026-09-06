@@ -28,6 +28,15 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     build: {
       rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } },
+      /*
+       * The AudioWorklet must be emitted as a FILE, never inlined.
+       *
+       * Vite inlines small assets as `data:` URLs, and `audioWorklet.addModule()` is governed
+       * by `script-src`. Our CSP is `script-src 'self'` with no `data:`, so an inlined worklet
+       * is blocked — silently, with no error the page can catch, and push-to-talk simply never
+       * records. Emitting it keeps the strict CSP and the working app.
+       */
+      assetsInlineLimit: (filePath: string) => !filePath.endsWith('pcm-worklet.js'),
     },
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),

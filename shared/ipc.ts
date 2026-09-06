@@ -21,6 +21,7 @@ export type Channel = (typeof CH)[keyof typeof CH]
 /** Failures cross as data, so the UI can tell a broken machine from a failed turn. */
 export const TurnFailureSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('mic-denied'), permanent: z.boolean() }),
+  z.object({ kind: z.literal('no-microphone') }),
   z.object({
     kind: z.literal('setup'),
     what: z.enum(['agent-cli', 'agent-auth', 'whisper', 'model']),
