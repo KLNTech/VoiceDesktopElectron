@@ -1,0 +1,73 @@
+/*
+ * S1 carries only what a window needs to look deliberate while it is still a shell. The design
+ * system (Industry_indust tokens, `state-roles.css`) arrives with the interface in S8.
+ */
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --bg: #f5f3ef;
+  --surface: #fffdfa;
+  --line: #e0d9cf;
+  --ink: #1c1a17;
+  --ink-soft: #6d665c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141210;
+    --surface: #1d1a17;
+    --line: #332d26;
+    --ink: #ece7df;
+    --ink-soft: #9d9489;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.bar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 20px;
+  /* Leaves room for the traffic lights under `titleBarStyle: 'hiddenInset'`. */
+  padding-top: 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  -webkit-app-region: drag;
+}
+
+.bar h1 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.version {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.note {
+  margin: 0;
+  padding: 20px;
+  max-width: 52ch;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
