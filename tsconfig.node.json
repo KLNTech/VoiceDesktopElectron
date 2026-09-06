@@ -27,6 +27,8 @@
   "include": [
     "package.json",
     "electron.vite.config.ts",
+    "vitest.config.ts",
+    "test/**/*.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/domain/**/*.ts",
