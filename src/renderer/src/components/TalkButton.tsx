@@ -1,8 +1,33 @@
+import type { TurnState } from '../../../domain/model/turn'
 import { t } from '../i18n'
 
+/**
+ * What the control is doing, as one value.
+ *
+ * This replaced a pair of booleans (`recording` + `busy`). Two flags naming phases of the same
+ * process allow `recording && busy` — a combination that must never happen, but which the type
+ * permitted, so every reader had to prove to themselves it did not occur. One state makes it
+ * unrepresentable, and `switch` forces each case to be answered.
+ */
+export type TalkControl = 'ready' | 'recording' | 'busy'
+
+/** The single mapping from the turn to the control, so no caller can invent a fourth answer. */
+export function talkControl(state: TurnState): TalkControl {
+  switch (state.k) {
+    case 'recording':
+      return 'recording'
+    case 'transcribing':
+    case 'thinking':
+    case 'speaking':
+      return 'busy'
+    case 'idle':
+    case 'error':
+      return 'ready'
+  }
+}
+
 interface Props {
-  readonly recording: boolean
-  readonly busy: boolean
+  readonly control: TalkControl
   readonly level: number
   readonly onHoldStart: () => void
   readonly onHoldEnd: () => void
@@ -15,13 +40,14 @@ interface Props {
  * All four hold-ending events are wired, and the pointer is captured, because `pointerup` alone
  * is not guaranteed to arrive (`docs/PLAN.md` §2). The fourth, window blur, lives in `useTurn`.
  */
-export function TalkButton({ recording, busy, level, onHoldStart, onHoldEnd }: Props): React.JSX.Element {
+export function TalkButton({ control, level, onHoldStart, onHoldEnd }: Props): React.JSX.Element {
+  const recording = control === 'recording'
   return (
     <div className="talk">
       <button
         type="button"
         className={recording ? 'talk-button is-recording' : 'talk-button'}
-        disabled={busy}
+        disabled={control === 'busy'}
         aria-pressed={recording}
         onPointerDown={(event) => {
           // Capture so the pointer leaving the button still reports its release here.
@@ -34,7 +60,7 @@ export function TalkButton({ recording, busy, level, onHoldStart, onHoldEnd }: P
       >
         {recording ? t('talk.listening') : t('talk.hold')}
       </button>
-      <LevelMeter level={level} recording={recording} />
+      <LevelMeter level={level} control={control} />
       <p className="hint">{t('talk.hint')}</p>
     </div>
   )
@@ -45,15 +71,13 @@ export function TalkButton({ recording, busy, level, onHoldStart, onHoldEnd }: P
  * It is never the only cue that recording is live — the button's label and pressed state carry
  * it too, so the state survives colour blindness and a screen reader.
  */
-function LevelMeter({ level, recording }: { level: number; recording: boolean }): React.JSX.Element {
+function LevelMeter({ level, control }: { level: number; control: TalkControl }): React.JSX.Element {
   const bars = [0.35, 0.6, 0.9, 1, 0.85, 0.55, 0.3]
+  const shown = control === 'recording' ? level : 0
   return (
     <div className="meter" aria-hidden="true">
       {bars.map((weight, index) => (
-        <i
-          key={index}
-          style={{ height: `${Math.max(3, (recording ? level : 0) * weight * 22 + 3)}px` }}
-        />
+        <i key={index} style={{ height: `${Math.max(3, shown * weight * 22 + 3)}px` }} />
       ))}
     </div>
   )

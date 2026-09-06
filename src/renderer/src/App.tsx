@@ -1,5 +1,5 @@
 import type { TurnFailure } from '../../domain/model/turn'
-import { TalkButton } from './components/TalkButton'
+import { TalkButton, talkControl } from './components/TalkButton'
 import { t } from './i18n'
 import { useTurn } from './useTurn'
 
@@ -12,8 +12,6 @@ import { useTurn } from './useTurn'
  */
 export function App(): React.JSX.Element {
   const { state, level, turns, notice, beginHold, endHold, dismiss } = useTurn()
-  const recording = state.k === 'recording'
-  const busy = state.k === 'transcribing' || state.k === 'thinking' || state.k === 'speaking'
 
   return (
     <main className="shell">
@@ -43,8 +41,7 @@ export function App(): React.JSX.Element {
       <footer className="foot">
         {notice === 'tooShort' ? <p className="notice">{t('talk.tooShort')}</p> : null}
         <TalkButton
-          recording={recording}
-          busy={busy}
+          control={talkControl(state)}
           level={level}
           onHoldStart={beginHold}
           onHoldEnd={endHold}
