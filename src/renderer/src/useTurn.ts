@@ -32,8 +32,9 @@ export function useTurn(): {
 
   const recorder = useRef<MicrophoneRecorder | null>(null)
   const releaseWanted = useRef(false)
+  // Kept current by `apply`, never written during render: a ref touched while rendering can
+  // leave the component showing a state the ref disagrees with.
   const stateRef = useRef<TurnState>(state)
-  stateRef.current = state
 
   const apply = useCallback((event: Parameters<typeof nextTurnState>[1]): TurnState => {
     const next = nextTurnState(stateRef.current, event)

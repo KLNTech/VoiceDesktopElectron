@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import { CH } from '../shared/ipc'
 
@@ -16,16 +17,19 @@ import { CH } from '../shared/ipc'
  * in "transcribing" for ever rather than as an error.
  */
 const require_ = createRequire(import.meta.url)
-const electronBinary = require_('electron') as unknown as string
 const repoRoot = process.cwd()
 
-interface Probe {
-  bridgeType: string
-  methods: string[]
-  ipcRendererLeaked: boolean
-  nodeLeaked: boolean
-  preloadErrors: string[]
-}
+/** `require('electron')` in Node resolves to the binary's path, not the module. */
+const electronBinary = z.string().min(1).parse(require_('electron'))
+
+const Probe = z.object({
+  bridgeType: z.string(),
+  methods: z.array(z.string()),
+  ipcRendererLeaked: z.boolean(),
+  nodeLeaked: z.boolean(),
+  preloadErrors: z.array(z.string()),
+})
+type Probe = z.infer<typeof Probe>
 
 function probe(): Probe {
   const stdout = execFileSync(
@@ -35,7 +39,7 @@ function probe(): Probe {
   )
   const line = stdout.split('\n').find((l) => l.startsWith('PROBE '))
   if (line === undefined) throw new Error(`probe produced no report:\n${stdout}`)
-  return JSON.parse(line.slice('PROBE '.length)) as Probe
+  return Probe.parse(JSON.parse(line.slice('PROBE '.length)))
 }
 
 describe('the preload bridge, in a real sandboxed renderer', () => {
@@ -49,7 +53,7 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
 
   it('exposes exactly one named method per declared channel, and nothing else', () => {
     expect(seen.methods).toEqual(
-      ['transcribe', 'ask', 'speak', 'appInfo', 'onTurnState'].sort(),
+      ['transcribe', 'ask', 'speak', 'appInfo', 'onTurnState'].toSorted(),
     )
     // The bridge must stay enumerable: one method per message, no more.
     expect(seen.methods).toHaveLength(Object.keys(CH).length)

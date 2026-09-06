@@ -12,7 +12,7 @@ const { join } = require('node:path')
 const repo = process.argv[2]
 const errors = []
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   const win = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -39,4 +39,5 @@ app.whenReady().then(async () => {
 
   console.log('PROBE ' + JSON.stringify({ ...seen, preloadErrors: errors }))
   app.quit()
+  return undefined
 })

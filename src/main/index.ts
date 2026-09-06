@@ -50,7 +50,8 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
 
-  void app.whenReady().then(() => {
+  void (async () => {
+    await app.whenReady()
     const isDev = !app.isPackaged
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       callback({
@@ -75,7 +76,7 @@ if (!app.requestSingleInstanceLock()) {
         loadRenderer(mainWindow)
       }
     })
-  })
+  })()
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
