@@ -6,6 +6,7 @@ import {
   type AppInfoRes,
   type AskReq,
   type AskRes,
+  type NotesListRes,
   type SpeakReq,
   type SpeakRes,
   type TranscribeReq,
@@ -29,6 +30,8 @@ const bridge: VoiceDeskBridge = {
   speak: (request: SpeakReq): Promise<SpeakRes> => ipcRenderer.invoke(CH.speak, request),
 
   appInfo: (): Promise<AppInfoRes> => ipcRenderer.invoke(CH.appInfo),
+
+  notes: (): Promise<NotesListRes> => ipcRenderer.invoke(CH.notes),
 
   onTurnState: (listener) => {
     const handler = (_event: unknown, payload: unknown): void => {

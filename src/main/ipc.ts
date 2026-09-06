@@ -4,6 +4,7 @@ import {
   AppInfoRes,
   AskReq,
   CH,
+  NotesListRes,
   SpeakReq,
   TranscribeReq,
   TurnStatePush,
@@ -58,8 +59,21 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
       version: env.version,
       stage: env.stage,
       notesDir: env.notesDir,
-      agentModel: env.agentModel,
+      // What the operator configured, valid or not. A turn reports the model that actually ran.
+      agentModel: env.agentModelRaw,
     })
+  })
+
+  /**
+   * The notes folder at rest, which the panel needs before any turn has happened.
+   *
+   * Parsed on the way OUT as well as in. The names come from the filesystem rather than from
+   * this app, and the renderer draws them, so the one bound worth having is right here: a file
+   * name is a bare name, and anything the schema refuses is a bug caught before it reaches a
+   * window rather than after.
+   */
+  ipcMain.handle(CH.notes, async (): Promise<NotesListRes> => {
+    return NotesListRes.parse({ files: await ports.notes.list() })
   })
 }
 

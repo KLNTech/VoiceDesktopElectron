@@ -1,10 +1,17 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { failed } from '../domain/model/turn'
+import { AGENT_MODELS, AgentModel, AgentModelSchema, DEFAULT_AGENT_MODEL } from '../../shared/agent-model'
+import { failed, succeeded, type Outcome } from '../domain/model/turn'
+import type { AgentReply } from '../domain/model/agent-reply'
 import type { AgentRunner } from '../domain/ports/AgentRunner'
+import type { NotesFolder } from '../domain/ports/NotesFolder'
 import type { SpeechSynthesizer } from '../domain/ports/SpeechSynthesizer'
 import type { Transcriber } from '../domain/ports/Transcriber'
+import { ClaudeCliAgentRunner } from '../infrastructure/agent/ClaudeCliAgentRunner'
+import { makeLoginCheck } from '../infrastructure/agent/keychain'
+import { MarkdownNotesFolder } from '../infrastructure/notes/MarkdownNotesFolder'
+import { MacSaySynthesizer } from '../infrastructure/speak/MacSaySynthesizer'
 import { WhisperCppTranscriber } from '../infrastructure/transcribe/WhisperCppTranscriber'
 import { resolveBinary } from '../infrastructure/process/resolveBinary'
 
@@ -13,32 +20,60 @@ export interface Env {
   readonly stage: 'dev' | 'build'
   readonly notesDir: string
   readonly agentBin: string | null
-  readonly agentModel: string
+  /** The tier that will be passed to `--model`, or the setup failure that says why not. */
+  readonly agentModel: Outcome<AgentModel>
+  /** Exactly what the operator configured, valid or not, for the title-bar readout. */
+  readonly agentModelRaw: string
+  readonly skipLoginCheck: boolean
   readonly whisperBin: string | null
   readonly whisperModel: string
+  readonly sayBin: string | null
 }
 
 /** Every knob in one place, each with a working default (`README.md` → Configuration). */
 export function readEnv(isDev: boolean, version: string): Env {
   const env = process.env
+  const rawModel = env['VOICEDESK_AGENT_MODEL'] ?? DEFAULT_AGENT_MODEL
   return {
     version,
     stage: isDev ? 'dev' : 'build',
     notesDir: env['VOICEDESK_NOTES_DIR'] ?? join(process.cwd(), 'notes'),
     agentBin: resolveBinary('claude', env['VOICEDESK_AGENT_BIN']),
-    // The cheapest current tier, by alias so it can never resolve to an Opus-tier model. This
-    // is a demonstration build; an expensive tier must be opted into, never arrived at by
-    // accident (`docs/PLAN.md` §5.2).
-    agentModel: env['VOICEDESK_AGENT_MODEL'] ?? 'haiku',
+    agentModel: readAgentModel(rawModel),
+    agentModelRaw: rawModel,
+    skipLoginCheck: env['VOICEDESK_SKIP_LOGIN_CHECK'] === '1',
     whisperBin: resolveBinary('whisper-cli', env['VOICEDESK_WHISPER_BIN']),
     whisperModel: env['VOICEDESK_WHISPER_MODEL'] ?? join(homedir(), '.whisper/ggml-base.en.bin'),
+    sayBin: resolveBinary('say', env['VOICEDESK_SAY_BIN']),
   }
+}
+
+/**
+ * `VOICEDESK_AGENT_MODEL` → a tier, or a setup failure naming the three legal values.
+ *
+ * It does NOT fall back to the default on an unrecognised value, and that is the whole reason
+ * this function exists. Silently substituting `haiku` for `hiaku` means an operator who set the
+ * variable deliberately gets something else and is never told — and the same silence would one
+ * day hide `opus` being ignored, which is the expensive direction. The failure surfaces on the
+ * first turn, the way a missing binary does, rather than preventing the window from opening:
+ * a typo in one variable should not cost the user an app they can look at.
+ */
+export function readAgentModel(raw: string): Outcome<AgentModel> {
+  const parsed = AgentModelSchema.safeParse(raw)
+  return parsed.success
+    ? succeeded(parsed.data)
+    : failed({
+        kind: 'setup',
+        what: 'agent-cli',
+        hint: `VOICEDESK_AGENT_MODEL is set to "${raw}", which is not a model tier this app will run. Use one of: ${AGENT_MODELS.join(', ')}.`,
+      })
 }
 
 export interface Ports {
   readonly transcriber: Transcriber
   readonly agent: AgentRunner
   readonly voice: SpeechSynthesizer
+  readonly notes: NotesFolder
 }
 
 /**
@@ -47,27 +82,25 @@ export interface Ports {
  * a dead seam.
  */
 export function buildPorts(env: Env): Ports {
+  const notes = new MarkdownNotesFolder(env.notesDir)
+  const model = env.agentModel
+
   return {
     transcriber: new WhisperCppTranscriber(env.whisperBin, env.whisperModel),
+    notes,
+    voice: new MacSaySynthesizer(env.sayBin),
 
-    // Iteration 1 stops before the agent, by decision, not by omission — see the iteration
-    // table in `docs/WORK-BREAKDOWN.md`. These two say so in the app's own failure vocabulary
-    // rather than crashing or answering with silence. S7 and S9 replace each with one line.
-    agent: {
-      run: async () =>
-        failed({
-          kind: 'setup',
-          what: 'agent-cli',
-          hint: 'The agent is not wired up in this build yet — iteration 1 ends at speech-to-text. Speaking and transcription work.',
-        }),
-    },
-    voice: {
-      speak: async () =>
-        failed({
-          kind: 'setup',
-          what: 'agent-cli',
-          hint: 'Spoken replies arrive with the agent, in a later iteration.',
-        }),
-    },
+    // A misconfigured tier is refused here rather than inside the adapter, so the adapter can
+    // take an `AgentModel` and never a string that might not be one.
+    agent:
+      model.k === 'ok'
+        ? new ClaudeCliAgentRunner(
+            env.agentBin,
+            model.value,
+            notes,
+            env.notesDir,
+            makeLoginCheck(env.skipLoginCheck),
+          )
+        : { run: async () => failed<AgentReply>(model.failure) },
   }
 }
