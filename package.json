@@ -15,7 +15,7 @@
     "docs:pdf": "scripts/docs-pdf.sh docs/voicedesk-architecture.pdf 'VoiceDesk \u2014 architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test": "vitest run"
+    "test": "electron-vite build && vitest run"
   },
   "dependencies": {
     "zod": "4.5.4"
