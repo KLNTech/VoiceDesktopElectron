@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "composite": true,
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "ESNext",
@@ -21,8 +20,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "outDir": "./node_modules/.tmp/tsc-node"
+    "noEmit": true
   },
   "include": [
     "package.json",
@@ -34,5 +32,6 @@
     "src/domain/**/*.ts",
     "src/infrastructure/**/*.ts",
     "shared/**/*.ts"
-  ]
+  ],
+  "exclude": ["test/**/*.web.test.ts"]
 }

@@ -60,7 +60,11 @@ describe('runVoiceTurn', () => {
 
     expect(result).toEqual({
       k: 'ok',
-      value: { transcript: { text: 'add milk to my shopping list', heldMs: 1_000 }, reply, spoken: false },
+      value: {
+        transcript: { text: 'add milk to my shopping list', heldMs: 1_000 },
+        reply,
+        speech: 'not-requested',
+      },
     })
     expect(p.agent.run).toHaveBeenCalledWith(
       { text: 'add milk to my shopping list', sessionId: null },
@@ -129,7 +133,9 @@ describe('runVoiceTurn', () => {
     )
 
     // The answer is already on screen. Failing the turn here would throw it away.
-    expect(result).toMatchObject({ k: 'ok', value: { spoken: false, reply } })
+    // 'unavailable' rather than 'not-requested': speech WAS asked for and could not be
+    // produced. A boolean could not tell those apart.
+    expect(result).toMatchObject({ k: 'ok', value: { speech: 'unavailable', reply } })
   })
 
   it('does not speak unless asked', async () => {

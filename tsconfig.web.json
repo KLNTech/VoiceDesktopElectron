@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "composite": true,
     "target": "ES2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
@@ -22,13 +21,13 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "outDir": "./node_modules/.tmp/tsc-web"
+    "noEmit": true
   },
   "include": [
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
     "src/renderer/**/*.json",
+    "test/**/*.web.test.ts",
     "src/domain/**/*.ts",
     "shared/**/*.ts"
   ]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { TurnState } from '../src/domain/model/turn'
-import { talkControl } from '../src/renderer/src/components/TalkButton'
+import { talkControl } from '../src/renderer/src/components/talkControl'
 
 /**
  * The control used to take two booleans, `recording` and `busy`, which between them could

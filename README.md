@@ -1,4 +1,4 @@
-# VoiceDesk
+# VoiceDeskElectron
 
 A macOS desktop assistant you talk to. Hold a button, speak, release — your words appear as
 text, go to a coding agent running through its own CLI, and the agent's reply comes back in the
@@ -7,7 +7,7 @@ window. The agent reads and writes Markdown files in a `notes/` folder beside th
 > *"add milk to my shopping list"* → the agent creates or edits `notes/shopping.md`
 > *"what's on my list?"* → the agent answers from it
 
-Repository name: `VoiceDesktopElectron`. Product name: VoiceDesk.
+Repository name: `VoiceDesktopElectron`. Product name: VoiceDeskElectron.
 
 ---
 
@@ -39,7 +39,7 @@ Development machine: macOS 26.6.2 (Apple Silicon), Node 26.8.1, npm 11.19.0.
 | A microphone | — | built-in is fine |
 
 **No API key, for either half.** Transcription runs locally, and the agent authenticates
-through the Claude Code CLI's own macOS Keychain login (step 4). VoiceDesk never asks for,
+through the Claude Code CLI's own macOS Keychain login (step 4). VoiceDeskElectron never asks for,
 stores or passes an API key or token: the keychain entry belongs to Claude Code, the app checks
 only that it is there, and it never reads the secret.
 
@@ -96,11 +96,11 @@ export VOICEDESK_WHISPER_MODEL=~/.whisper/ggml-large-v3-turbo.bin
 
 ### 4 · Claude Code — installed **and signed in** ✅
 
-VoiceDesk drives a coding agent through its command line, and the one adapter in this build is
+VoiceDeskElectron drives a coding agent through its command line, and the one adapter in this build is
 Claude Code (`claude -p`). Two things have to be true, not one: the CLI is on this machine, and
 you have signed in to it **in a terminal on this machine**. The sign-in is the half that matters
-to the app — it is what writes the credentials into the macOS Keychain that VoiceDesk later
-depends on, without VoiceDesk ever handling them itself.
+to the app — it is what writes the credentials into the macOS Keychain that VoiceDeskElectron later
+depends on, without VoiceDeskElectron ever handling them itself.
 
 ```bash
 # 1 — install
@@ -131,9 +131,9 @@ that is not in this delivery — see the future-work table in
 > **If the app says you are not signed in:** the binary is there, the keychain entry is not.
 > That entry lives in *your* login keychain, so the sign-in has to have happened as the macOS
 > user who runs the app — not as another account, and not on another machine. Do step 2, re-run
-> the step 3 probe, then restart VoiceDesk.
+> the step 3 probe, then restart VoiceDeskElectron.
 
-### 5 · VoiceDesk itself ◻︎
+### 5 · VoiceDeskElectron itself ◻︎
 
 ```bash
 git clone https://github.com/KLNTech/VoiceDesktopElectron.git
@@ -143,7 +143,7 @@ npm run dev
 ```
 
 The first launch asks for **microphone** permission. Grant it. If you decline and change your
-mind: *System Settings → Privacy & Security → Microphone → VoiceDesk*.
+mind: *System Settings → Privacy & Security → Microphone → VoiceDeskElectron*.
 
 ### Configuration ◻︎
 
@@ -201,7 +201,7 @@ Filled in as the build progresses; empty here means not yet done, not overlooked
 
 ## Third-party software and licences
 
-VoiceDesk is built on other people's work. The permissive licences below (MIT, Apache-2.0,
+VoiceDeskElectron is built on other people's work. The permissive licences below (MIT, Apache-2.0,
 BSD) require their copyright and permission notices to travel with any distribution, so the
 list is reproduced here and, once built, inside the app under **About → Credits**.
 
@@ -271,4 +271,4 @@ above. The full list, with the reason for each, is the future-work table at the 
 
 ## Licence
 
-VoiceDesk itself: to be decided before the first release.
+VoiceDeskElectron itself: to be decided before the first release.

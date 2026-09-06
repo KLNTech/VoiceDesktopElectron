@@ -127,10 +127,17 @@ body {
   padding: 14px 16px;
   border-radius: 4px;
 }
-/* Setup problems are the user's machine, not this turn — and they get a different edge, not
-   just different words, so the difference survives a glance. */
-.failure.is-setup {
+/* The three categories of the design's error registry get three different edges, not just
+   different words, so "install something" / "grant something" / "this turn failed" survive a
+   glance. Colour is never the only cue — each carries its own title and action. */
+.failure.cat-setup {
   border-left-color: #a3560b;
+}
+.failure.cat-permission {
+  border-left-color: #1c6444;
+}
+.failure.cat-failure {
+  border-left-color: #a82a1f;
 }
 .failure strong {
   display: block;

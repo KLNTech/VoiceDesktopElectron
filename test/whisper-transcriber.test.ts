@@ -60,7 +60,9 @@ function readWavAsFloat32(path: string): { samples: Float32Array; sampleRate: nu
 describe.skipIf(!ready)('WhisperCppTranscriber, against the real binary', () => {
   it('turns spoken words back into text, with no key, account or network', async () => {
     const spoken = join(work, 'said.wav')
-    execFileSync(sayBin as string, [
+    // The suite only runs when these resolved; narrow rather than assert it.
+    if (sayBin === null || whisperBin === null) throw new Error('unreachable: guarded by skipIf')
+    execFileSync(sayBin, [
       '-o', spoken,
       '--data-format=LEI16@16000',
       'add milk to my shopping list',

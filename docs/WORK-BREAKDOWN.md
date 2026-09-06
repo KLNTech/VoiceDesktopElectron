@@ -1,4 +1,4 @@
-# VoiceDesk — work breakdown
+# VoiceDeskElectron — work breakdown
 
 The build, decomposed before any of it is written. Each subtask carries a scope, an acceptance
 criterion **quoted from the client brief** (not "tests are green"), a complexity rating 1–10 that
@@ -72,7 +72,9 @@ single `BrowserWindow` that opens with the three security switches written expli
 version badge reading `package.json`.
 
 - **Acceptance:** *"It runs on a clean machine following your README"* — `npm ci && npm run dev`
-  on a machine that has never seen this repo opens a window showing `v0.1.0 · dev`.
+  on a machine that has never seen this repo opens a window showing the version from
+  `package.json` followed by ` · dev` — the number itself lives in one place and is not
+  restated here, so a bump cannot make this criterion false.
 - **Complexity:** 5 · **Parallelism:** SEQUENTIAL (root) · **Status:** BUILT (awaiting acceptance)
 
 ### S2 — the architecture gate

@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
+import { z } from 'zod'
+
 import { failed, succeeded, type Outcome } from '../../domain/model/turn'
 import type { Transcript } from '../../domain/model/transcript'
 import type { AudioClip, Transcriber } from '../../domain/ports/Transcriber'
@@ -12,10 +14,16 @@ import { encodeWav } from './wav'
 
 const run = promisify(execFile)
 
-/** Only the field the adapter actually consumes; anything else whisper writes is ignored. */
-interface WhisperJson {
-  transcription?: { text?: string }[]
-}
+/**
+ * Only the field the adapter actually consumes; anything else whisper writes is ignored.
+ *
+ * Parsed, not cast. This is another program's output format, which this project neither owns
+ * nor versions, so `as` here would be a promise the compiler cannot keep — the same rule
+ * `docs/PLAN.md` §5.3 states for the agent's reply.
+ */
+const WhisperOutput = z.object({
+  transcription: z.array(z.object({ text: z.string().optional() })).optional(),
+})
 
 /**
  * Speech to text with `whisper-cli`, on this machine: no API key, no account, no network.
@@ -64,7 +72,7 @@ export class WhisperCppTranscriber implements Transcriber {
       )
 
       const raw: unknown = JSON.parse(await readFile(`${outBase}.json`, 'utf8'))
-      const segments = (raw as WhisperJson).transcription ?? []
+      const segments = WhisperOutput.parse(raw).transcription ?? []
       const text = segments
         .map((segment) => segment.text ?? '')
         .join('')
@@ -81,9 +89,14 @@ export class WhisperCppTranscriber implements Transcriber {
   }
 
   private classify(error: unknown): Parameters<typeof failed>[0] {
-    const e = error as { code?: string; killed?: boolean; stderr?: string; name?: string }
+    // Narrowed with `in` rather than asserted: the shape of a thrown value is a claim about
+    // someone else's code, and `as` would let a changed shape read as `undefined` silently.
+    const field = (key: string): unknown =>
+      typeof error === 'object' && error !== null && key in error
+        ? Reflect.get(error, key)
+        : undefined
 
-    if (e.code === 'ENOENT') {
+    if (field('code') === 'ENOENT') {
       return {
         kind: 'setup',
         what: 'whisper',
@@ -92,10 +105,14 @@ export class WhisperCppTranscriber implements Transcriber {
     }
     // execFile reports both a kill-on-timeout and an abort this way; either means the run could
     // not finish, and the child is already dead.
-    if (e.killed === true || e.name === 'AbortError') {
+    if (field('killed') === true || field('name') === 'AbortError') {
       return { kind: 'timeout', afterMs: this.timeoutMs }
     }
-    return { kind: 'transcribe-failed', stderr: lastLine(e.stderr ?? String(error)) }
+    const stderr = field('stderr')
+    return {
+      kind: 'transcribe-failed',
+      stderr: lastLine(typeof stderr === 'string' ? stderr : String(error)),
+    }
   }
 }
 
