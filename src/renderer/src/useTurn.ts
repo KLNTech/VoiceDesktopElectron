@@ -58,7 +58,7 @@ export function useTurn(): {
     recorder.current = mic
 
     void mic.start().then((started) => {
-      if (!started.ok) {
+      if (started.k === 'failed') {
         recorder.current = null
         return fail(started.failure)
       }
@@ -89,7 +89,7 @@ export function useTurn(): {
         heldMs: Math.round(clip.heldMs),
       })
 
-      if (!result.ok) return fail(result.failure)
+      if (result.k === 'failed') return fail(result.failure)
 
       const text = result.value.text.trim()
       if (text === '') return fail({ kind: 'empty-speech' })

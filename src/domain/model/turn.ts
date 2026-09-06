@@ -37,15 +37,23 @@ export type TurnFailure =
   | { kind: 'timeout'; afterMs: number }
   | { kind: 'empty-speech' }
 
-/** The result channel for everything that can fail: success or a typed failure, never a throw. */
-export type Outcome<T> = { ok: true; value: T } | { ok: false; failure: TurnFailure }
+/**
+ * The result channel for everything that can fail: success or a typed failure, never a throw.
+ *
+ * Tagged like `TurnState` rather than discriminated on a boolean. A boolean would fix this at
+ * exactly two outcomes, and the turn already has a third in view: `Esc` cancels, and cancelled
+ * is not broken. With `ok: false` the only home for a cancellation is "a kind of failure",
+ * which is the same collapsing of distinguishable outcomes this codebase refuses everywhere
+ * else.
+ */
+export type Outcome<T> = { k: 'ok'; value: T } | { k: 'failed'; failure: TurnFailure }
 
 export function succeeded<T>(value: T): Outcome<T> {
-  return { ok: true, value }
+  return { k: 'ok', value }
 }
 
 export function failed<T>(failure: TurnFailure): Outcome<T> {
-  return { ok: false, failure }
+  return { k: 'failed', failure }
 }
 
 /** Everything that can move the turn along. Anything not listed here cannot change the state. */

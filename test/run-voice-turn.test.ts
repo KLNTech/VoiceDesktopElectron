@@ -59,7 +59,7 @@ describe('runVoiceTurn', () => {
     )
 
     expect(result).toEqual({
-      ok: true,
+      k: 'ok',
       value: { transcript: { text: 'add milk to my shopping list', heldMs: 1_000 }, reply, spoken: false },
     })
     expect(p.agent.run).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe('runVoiceTurn', () => {
       AbortSignal.timeout(1_000),
     )
 
-    expect(result).toEqual({ ok: false, failure: { kind: 'empty-speech' } })
+    expect(result).toEqual({ k: 'failed', failure: { kind: 'empty-speech' } })
     expect(p.agent.run).not.toHaveBeenCalled()
   })
 
@@ -107,7 +107,7 @@ describe('runVoiceTurn', () => {
       AbortSignal.timeout(1_000),
     )
 
-    expect(result).toMatchObject({ ok: false, failure: { kind: 'setup', what: 'model' } })
+    expect(result).toMatchObject({ k: 'failed', failure: { kind: 'setup', what: 'model' } })
     expect(p.agent.run).not.toHaveBeenCalled()
   })
 
@@ -118,7 +118,7 @@ describe('runVoiceTurn', () => {
       AbortSignal.timeout(1_000),
     )
 
-    expect(result).toMatchObject({ ok: false, failure: { kind: 'timeout' } })
+    expect(result).toMatchObject({ k: 'failed', failure: { kind: 'timeout' } })
   })
 
   it('still delivers the reply when the voice will not start', async () => {
@@ -129,7 +129,7 @@ describe('runVoiceTurn', () => {
     )
 
     // The answer is already on screen. Failing the turn here would throw it away.
-    expect(result).toMatchObject({ ok: true, value: { spoken: false, reply } })
+    expect(result).toMatchObject({ k: 'ok', value: { spoken: false, reply } })
   })
 
   it('does not speak unless asked', async () => {

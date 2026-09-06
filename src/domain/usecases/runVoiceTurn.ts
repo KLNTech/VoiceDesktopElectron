@@ -45,7 +45,7 @@ export type RunVoiceTurn = (
 export function makeRunVoiceTurn(ports: VoiceTurnPorts): RunVoiceTurn {
   return async (request, signal) => {
     const transcription = await ports.transcriber.transcribe(request.clip, signal)
-    if (!transcription.ok) return transcription
+    if (transcription.k === 'failed') return transcription
 
     const transcript = transcription.value
     // Silence, or the punctuation whisper invents from room noise. Ending here spends no model
@@ -58,7 +58,7 @@ export function makeRunVoiceTurn(ports: VoiceTurnPorts): RunVoiceTurn {
       { text: transcript.text, sessionId: request.sessionId },
       signal,
     )
-    if (!answer.ok) return answer
+    if (answer.k === 'failed') return answer
 
     const reply = answer.value
     if (!request.speakReply) return succeeded({ transcript, reply, spoken: false })
@@ -66,6 +66,6 @@ export function makeRunVoiceTurn(ports: VoiceTurnPorts): RunVoiceTurn {
     // A voice that will not start is not a failed turn: the answer is already on screen, and
     // failing the turn here would throw away a reply the user can read.
     const spoken = await ports.voice.speak(reply.text, signal)
-    return succeeded({ transcript, reply, spoken: spoken.ok })
+    return succeeded({ transcript, reply, spoken: spoken.k === 'ok' })
   }
 }

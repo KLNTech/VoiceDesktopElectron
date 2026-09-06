@@ -35,9 +35,9 @@ export const TurnFailureSchema = z.discriminatedUnion('kind', [
 
 /** Every request→reply message answers with this shape: a value, or a typed failure. */
 function outcomeOf<T extends z.ZodTypeAny>(value: T) {
-  return z.discriminatedUnion('ok', [
-    z.object({ ok: z.literal(true), value }),
-    z.object({ ok: z.literal(false), failure: TurnFailureSchema }),
+  return z.discriminatedUnion('k', [
+    z.object({ k: z.literal('ok'), value }),
+    z.object({ k: z.literal('failed'), failure: TurnFailureSchema }),
   ])
 }
 

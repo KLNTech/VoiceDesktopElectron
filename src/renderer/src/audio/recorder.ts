@@ -7,7 +7,7 @@ export interface CapturedClip {
   readonly heldMs: number
 }
 
-export type StartResult = { ok: true } | { ok: false; failure: TurnFailure }
+export type StartResult = { k: 'ok' } | { k: 'failed'; failure: TurnFailure }
 
 /** 16 kHz is asked for as an optimisation, not required — whisper resamples (`docs/PLAN.md` §6). */
 const PREFERRED_RATE = 16_000
@@ -44,7 +44,7 @@ export class MicrophoneRecorder {
         },
       })
     } catch (error) {
-      return { ok: false, failure: await classifyMicError(error) }
+      return { k: 'failed', failure: await classifyMicError(error) }
     }
 
     this.stream = stream
@@ -65,11 +65,11 @@ export class MicrophoneRecorder {
 
       source.connect(this.node)
       source.connect(this.analyser)
-      return { ok: true }
+      return { k: 'ok' }
     } catch (error) {
       await this.release()
       return {
-        ok: false,
+        k: 'failed',
         failure: { kind: 'transcribe-failed', stderr: `audio pipeline: ${String(error)}` },
       }
     }

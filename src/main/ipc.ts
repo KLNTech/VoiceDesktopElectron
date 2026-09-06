@@ -40,9 +40,9 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
     if (!parsed.success) return failed({ kind: 'agent-failed', stderr: 'malformed request' })
 
     const outcome = await ports.agent.run(parsed.data, AbortSignal.timeout(90_000))
-    if (!outcome.ok) return outcome
+    if (outcome.k === 'failed') return outcome
     const { text, notes, model, sessionId, costUsd } = outcome.value
-    return { ok: true, value: { reply: text, notes: [...notes], model, sessionId, costUsd } }
+    return { k: 'ok', value: { reply: text, notes: [...notes], model, sessionId, costUsd } }
   })
 
   ipcMain.handle(CH.speak, async (_event, payload: unknown): Promise<SpeakRes> => {
@@ -50,7 +50,7 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
     if (!parsed.success) return failed({ kind: 'agent-failed', stderr: 'malformed request' })
 
     const outcome = await ports.voice.speak(parsed.data.text, AbortSignal.timeout(120_000))
-    return outcome.ok ? { ok: true, value: null } : outcome
+    return outcome.k === 'ok' ? { k: 'ok', value: null } : outcome
   })
 
   ipcMain.handle(CH.appInfo, async (): Promise<AppInfoRes> => {

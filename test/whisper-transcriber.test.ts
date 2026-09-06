@@ -73,8 +73,8 @@ describe.skipIf(!ready)('WhisperCppTranscriber, against the real binary', () => 
       AbortSignal.timeout(60_000),
     )
 
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
+    expect(result.k).toBe('ok')
+    if (result.k !== 'ok') return
     // What is asserted is the PIPELINE — Float32 → WAV → whisper → parsed text — not the
     // model's accuracy, which is not this project's code. On this machine the default
     // `base.en` hears "Ade de Milc tome shop ting cholist" from the synthetic `say` voice,
@@ -92,8 +92,8 @@ describe.skipIf(!ready)('WhisperCppTranscriber, against the real binary', () => 
       AbortSignal.timeout(10_000),
     )
 
-    expect(result).toMatchObject({ ok: false, failure: { kind: 'setup', what: 'model' } })
-    if (!result.ok && result.failure.kind === 'setup') {
+    expect(result).toMatchObject({ k: 'failed', failure: { kind: 'setup', what: 'model' } })
+    if (result.k === 'failed' && result.failure.kind === 'setup') {
       expect(result.failure.hint).toMatch(/README|VOICEDESK_WHISPER_MODEL/)
     }
   })
@@ -105,8 +105,8 @@ describe.skipIf(!ready)('WhisperCppTranscriber, against the real binary', () => 
       AbortSignal.timeout(10_000),
     )
 
-    expect(result).toMatchObject({ ok: false, failure: { kind: 'setup', what: 'whisper' } })
-    if (!result.ok && result.failure.kind === 'setup') {
+    expect(result).toMatchObject({ k: 'failed', failure: { kind: 'setup', what: 'whisper' } })
+    if (result.k === 'failed' && result.failure.kind === 'setup') {
       expect(result.failure.hint).toContain('brew install whisper-cpp')
     }
   })
