@@ -1,4 +1,4 @@
-import type { TurnFailure } from '../../../domain/model/turn'
+import type { MicDenial, TurnFailure } from '../../../domain/model/turn'
 import workletUrl from './pcm-worklet.js?url'
 
 export interface CapturedClip {
@@ -146,19 +146,19 @@ async function classifyMicError(error: unknown): Promise<TurnFailure> {
     return { kind: 'no-microphone' }
   }
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return { kind: 'mic-denied', permanent: await deniedAtTheSystemLevel() }
+    return { kind: 'mic-denied', denial: await denialKind() }
   }
   return { kind: 'transcribe-failed', stderr: `microphone: ${String(error)}` }
 }
 
-async function deniedAtTheSystemLevel(): Promise<boolean> {
+async function denialKind(): Promise<MicDenial> {
   try {
     const status = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-    return status.state === 'denied'
+    return status.state === 'denied' ? 'system-settings' : 'retryable'
   } catch {
-    // A browser that cannot answer is not evidence of a permanent denial; say the recoverable
-    // thing, because it costs the user one retry rather than a trip to System Settings.
-    return false
+    // A browser that cannot answer is not evidence of a recorded denial; say the recoverable
+    // thing, because it costs the user one retry rather than a wasted trip to System Settings.
+    return 'retryable'
   }
 }
 

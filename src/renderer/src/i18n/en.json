@@ -1,5 +1,5 @@
 {
-  "app.name": "VoiceDesk",
+  "app.name": "VoiceDeskElectron",
   "talk.hold": "Hold to talk",
   "talk.hint": "or hold Space",
   "talk.listening": "Listening",
@@ -12,14 +12,16 @@
   "turn.you": "you",
   "turn.empty": "Nothing here yet. Hold the button and say something.",
   "err.mic.deniedTitle": "Microphone access is off",
-  "err.mic.deniedBody": "VoiceDesk needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone.",
+  "err.mic.deniedBody": "VoiceDeskElectron needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone.",
   "err.mic.noneTitle": "No microphone found",
-  "err.mic.noneBody": "VoiceDesk could not find an input device. Connect one and try again.",
+  "err.mic.noneBody": "VoiceDeskElectron could not find an input device. Connect one and try again.",
   "err.setupTitle": "Setup is incomplete",
   "err.transcribeTitle": "That did not transcribe",
   "err.agentTitle": "The agent could not finish",
   "err.timeoutTitle": "That took too long",
   "err.emptyTitle": "Nothing was heard",
   "err.emptyBody": "The recording was silent. Hold the button and speak.",
-  "err.dismiss": "Dismiss"
+  "err.dismiss": "Dismiss",
+  "err.mic.retryTitle": "The microphone was not allowed",
+  "err.mic.retryBody": "Nothing was recorded. Hold the button again and allow access when macOS asks."
 }

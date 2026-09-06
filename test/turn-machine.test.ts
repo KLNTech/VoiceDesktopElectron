@@ -53,8 +53,8 @@ describe('the turn machine', () => {
 
   it('goes to idle after a reply that is not spoken, and to speaking when it is', () => {
     const thinking: TurnState = { k: 'thinking' }
-    expect(nextTurnState(thinking, { t: 'replied', spoken: false })).toEqual({ k: 'idle' })
-    expect(nextTurnState(thinking, { t: 'replied', spoken: true })).toEqual({ k: 'speaking' })
+    expect(nextTurnState(thinking, { t: 'replied', speech: 'not-requested' })).toEqual({ k: 'idle' })
+    expect(nextTurnState(thinking, { t: 'replied', speech: 'spoken' })).toEqual({ k: 'speaking' })
   })
 
   it('can fail from any state, and only an error can be dismissed', () => {

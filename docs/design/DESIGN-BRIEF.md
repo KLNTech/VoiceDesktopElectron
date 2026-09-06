@@ -1,4 +1,4 @@
-# VoiceDesk — design brief
+# VoiceDeskElectron — design brief
 
 A self-contained brief for the UI. It is written to be handed over whole: everything needed to
 build the app's face is below, including the copy. Nothing here needs the source code.
@@ -98,7 +98,7 @@ first-class.
 
 `EDITED` · `READING` · `UNCHANGED`
 
-and the panel has a footer stating that the agent writes these files and VoiceDesk does not. This
+and the panel has a footer stating that the agent writes these files and VoiceDeskElectron does not. This
 panel is the durable evidence of the thing being demonstrated: the reply scrolls away, the file
 list does not. It is also the visible form of the constraint in §9 — the app shows what the agent
 did to the folder, and never presents itself as the author.
@@ -151,8 +151,8 @@ own error code.
 
 | failure | headline | body | action |
 |---|---|---|---|
-| microphone denied | `Microphone access is off` | `VoiceDesk needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone.` | `Open System Settings` |
-| setup incomplete | `<tool> was not found` | `VoiceDesk needs it to <transcribe your voice / reach the agent>. See the README for the one-line install.` | `Copy install command` |
+| microphone denied | `Microphone access is off` | `VoiceDeskElectron needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone.` | `Open System Settings` |
+| setup incomplete | `<tool> was not found` | `VoiceDeskElectron needs it to <transcribe your voice / reach the agent>. See the README for the one-line install.` | `Copy install command` |
 | agent failed | `The agent could not finish` | the trimmed error text from the agent, in a monospace block | `Try again` |
 | timed out | `That took too long` | `The agent did not answer within 90 seconds and was stopped.` | `Try again` |
 

@@ -29,6 +29,7 @@
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
     "src/renderer/**/*.json",
+    "test/**/*.web.test.ts",
     "src/domain/**/*.ts",
     "shared/**/*.ts"
   ]

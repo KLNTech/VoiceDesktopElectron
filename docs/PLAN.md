@@ -1,9 +1,9 @@
-# VoiceDesk — architecture plan
+# VoiceDeskElectron — architecture plan
 
 > Living document. Every sentence here is true of the current code, or it gets corrected.
 > History lives in git, not in this file.
 
-**Repository:** `VoiceDesktopElectron` · **Product name:** VoiceDesk · **Platform:** macOS
+**Repository:** `VoiceDesktopElectron` · **Product name:** VoiceDeskElectron · **Platform:** macOS
 (Apple Silicon and Intel) · **Canonical version:** the `version` field of `package.json`.
 
 ---
@@ -268,7 +268,7 @@ agent re-reading `notes/` every turn — also works, and is what the fallback la
 
 ### 5.5 Authentication is the CLI's own keychain login
 
-**Decision: VoiceDesk passes no API key, reads no token, and puts no secret in a process
+**Decision: VoiceDeskElectron passes no API key, reads no token, and puts no secret in a process
 argument or an environment variable.** `claude` authenticates itself from the credentials the
 user's own terminal login left in the macOS **login keychain** — a generic-password item under
 the service name `Claude Code-credentials` in `~/Library/Keychains/login.keychain-db`, whose
@@ -278,7 +278,7 @@ account attribute is the macOS user. Observed here: a `claude -p … --model hai
 That is a smaller blast radius, not a convenience. A credential the app never holds cannot be
 logged by it, captured in a crash report, or handed to a child process by mistake — "we
 mishandled a key" is not among this application's failure modes at all. The entry belongs to
-Claude Code; VoiceDesk checks only that it is there and never reads it.
+Claude Code; VoiceDeskElectron checks only that it is there and never reads it.
 
 The second consequence is a failure class. *"Nobody ever signed in on this machine"* is a
 **setup** problem with an exact fix — run `claude` in a terminal and log in — and the presence
@@ -404,7 +404,7 @@ Rules that follow from it:
 
 ```ts
 export type TurnFailure =
-  | { kind: 'mic-denied';    permanent: boolean }
+  | { kind: 'mic-denied';    denial: 'retryable' | 'system-settings' }
   | { kind: 'no-microphone' }
   | { kind: 'setup';         what: 'agent-cli' | 'agent-auth' | 'whisper' | 'model'; hint: string }
   | { kind: 'transcribe-failed'; stderr: string }
@@ -563,7 +563,7 @@ The questions this plan opened, and their answers:
    model and it survives the retirement of any dated snapshot; today it resolves to
    `claude-haiku-4-5`. `VOICEDESK_AGENT_MODEL` (default `haiku`) is the explicit opt-in for
    anything stronger, so a stronger model is chosen, never inherited.
-6. **Agent authentication** — the **CLI's own macOS Keychain login** (§5.5). VoiceDesk passes no
+6. **Agent authentication** — the **CLI's own macOS Keychain login** (§5.5). VoiceDeskElectron passes no
    API key and holds no credential, so a secret is not in its blast radius; a machine that has
    never signed in is a *setup* failure with an exact fix, caught by a preflight before the
    spawn rather than reported as an agent failure.

@@ -1,5 +1,6 @@
 import type { TurnFailure } from '../../domain/model/turn'
-import { TalkButton, talkControl } from './components/TalkButton'
+import { TalkButton } from './components/TalkButton'
+import { talkControl } from './components/talkControl'
 import { t } from './i18n'
 import { useTurn } from './useTurn'
 
@@ -78,9 +79,9 @@ function Failure({
   failure: TurnFailure
   onDismiss: () => void
 }): React.JSX.Element {
-  const { title, body, yours } = describe(failure)
+  const { title, body, category } = describe(failure)
   return (
-    <div className={yours ? 'failure is-setup' : 'failure'} role="alert">
+    <div className={`failure cat-${category}`} role="alert">
       <strong>{title}</strong>
       <p>{body}</p>
       <button type="button" onClick={onDismiss}>
@@ -90,25 +91,40 @@ function Failure({
   )
 }
 
-function describe(failure: TurnFailure): { title: string; body: string; yours: boolean } {
+/**
+ * The three categories the design's error registry uses, and which the window renders
+ * differently. This replaced a boolean called `yours`: it could only ever say "your machine or
+ * not", while the design distinguishes a missing install from a refused permission — two
+ * problems with completely different fixes — and the boolean had no room for the difference.
+ */
+type FailureCategory = 'setup' | 'permission' | 'failure'
+
+function describe(failure: TurnFailure): {
+  title: string
+  body: string
+  category: FailureCategory
+} {
   switch (failure.kind) {
     case 'mic-denied':
-      return { title: t('err.mic.deniedTitle'), body: t('err.mic.deniedBody'), yours: true }
+      // The two denials need different actions from the user, so they get different words.
+      return failure.denial === 'system-settings'
+        ? { title: t('err.mic.deniedTitle'), body: t('err.mic.deniedBody'), category: 'permission' }
+        : { title: t('err.mic.retryTitle'), body: t('err.mic.retryBody'), category: 'permission' }
     case 'no-microphone':
-      return { title: t('err.mic.noneTitle'), body: t('err.mic.noneBody'), yours: true }
+      return { title: t('err.mic.noneTitle'), body: t('err.mic.noneBody'), category: 'permission' }
     case 'setup':
-      return { title: t('err.setupTitle'), body: failure.hint, yours: true }
+      return { title: t('err.setupTitle'), body: failure.hint, category: 'setup' }
     case 'transcribe-failed':
-      return { title: t('err.transcribeTitle'), body: failure.stderr, yours: false }
+      return { title: t('err.transcribeTitle'), body: failure.stderr, category: 'failure' }
     case 'agent-failed':
-      return { title: t('err.agentTitle'), body: failure.stderr, yours: false }
+      return { title: t('err.agentTitle'), body: failure.stderr, category: 'failure' }
     case 'timeout':
       return {
         title: t('err.timeoutTitle'),
         body: `Stopped after ${Math.round(failure.afterMs / 1000)}s.`,
-        yours: false,
+        category: 'failure',
       }
     case 'empty-speech':
-      return { title: t('err.emptyTitle'), body: t('err.emptyBody'), yours: false }
+      return { title: t('err.emptyTitle'), body: t('err.emptyBody'), category: 'failure' }
   }
 }

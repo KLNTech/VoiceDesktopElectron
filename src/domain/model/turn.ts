@@ -29,7 +29,7 @@ export type TurnState =
  * fix, and reporting it as an agent failure would send the user to debug the wrong thing.
  */
 export type TurnFailure =
-  | { kind: 'mic-denied'; permanent: boolean }
+  | { kind: 'mic-denied'; denial: MicDenial }
   | { kind: 'no-microphone' }
   | { kind: 'setup'; what: 'agent-cli' | 'agent-auth' | 'whisper' | 'model'; hint: string }
   | { kind: 'transcribe-failed'; stderr: string }
@@ -46,6 +46,25 @@ export type TurnFailure =
  * which is the same collapsing of distinguishable outcomes this codebase refuses everywhere
  * else.
  */
+/**
+ * How a microphone refusal can be fixed, which is the only thing the user needs from it.
+ * `docs/PLAN.md` §6 describes three permission outcomes; granted is not a failure, so the two
+ * denials live here. A boolean called `permanent` said the same thing while hiding what to DO
+ * about it, and could not grow a third case (a device held by another app, say).
+ */
+export type MicDenial =
+  /** The prompt was dismissed, or not answered. Holding again can still succeed. */
+  | 'retryable'
+  /** macOS has recorded a denial. Nothing in the app can undo it; only System Settings can. */
+  | 'system-settings'
+
+/**
+ * What became of the spoken reply. `spoken: boolean` collapsed two different things into
+ * `false` — nobody asked for speech, and speech was asked for and could not be produced — and
+ * the interface needs to tell them apart to know whether to offer a replay control.
+ */
+export type SpeechOutcome = 'spoken' | 'not-requested' | 'unavailable'
+
 export type Outcome<T> = { k: 'ok'; value: T } | { k: 'failed'; failure: TurnFailure }
 
 export function succeeded<T>(value: T): Outcome<T> {
@@ -62,7 +81,7 @@ export type TurnEvent =
   | { t: 'hold-ended'; at: number }
   | { t: 'level-changed'; level: number }
   | { t: 'transcribed' }
-  | { t: 'replied'; spoken: boolean }
+  | { t: 'replied'; speech: SpeechOutcome }
   | { t: 'finished-speaking' }
   | { t: 'failed'; failure: TurnFailure }
   | { t: 'dismissed' }
@@ -94,7 +113,7 @@ export function nextTurnState(state: TurnState, event: TurnEvent): TurnState {
 
     case 'replied':
       if (state.k !== 'thinking') return state
-      return event.spoken ? { k: 'speaking' } : { k: 'idle' }
+      return event.speech === 'spoken' ? { k: 'speaking' } : { k: 'idle' }
 
     case 'finished-speaking':
       return state.k === 'speaking' ? { k: 'idle' } : state

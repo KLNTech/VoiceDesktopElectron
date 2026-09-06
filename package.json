@@ -1,8 +1,8 @@
 {
-  "name": "voicedesk",
+  "name": "voicedeskelectron",
   "version": "0.1.0",
   "private": true,
-  "description": "A macOS desktop assistant you talk to: hold a button, speak, release.",
+  "description": "VoiceDeskElectron \u2014 a macOS desktop assistant you talk to: hold a button, speak, release.",
   "author": "QuaqKLNTech",
   "license": "UNLICENSED",
   "main": "./out/main/index.js",
