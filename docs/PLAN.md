@@ -290,13 +290,27 @@ Capture lives in the **renderer**, because that is where the browser media stack
 back the level meter for free.
 
 ```
-getUserMedia → AudioContext({ sampleRate: 16000 }) → AudioWorklet → Float32Array (mono, 16 kHz)
+getUserMedia → AudioContext({ sampleRate: 16000 }) → AudioWorklet → Float32Array (mono)
   → ArrayBuffer over IPC → main → wav.ts (16-bit PCM) → temp file → whisper-cli → transcript
 ```
 
-- **16 kHz is requested at the source**, not resampled afterwards, because that is exactly what
-  Whisper wants. This is also why there is **no `ffmpeg` dependency**: `MediaRecorder` would give
-  WebM/Opus that something would then have to transcode.
+**Why there is no `ffmpeg`, stated correctly.** `whisper-cli` 1.9.2 accepts `wav`, `flac`, `mp3`
+and `ogg`, decodes them through miniaudio and **resamples internally** — measured here: a 48 kHz
+and a 16 kHz WAV of the same utterance produced byte-identical transcripts. What it does *not*
+accept is **WebM/Opus**, which is exactly what `MediaRecorder` produces in Chromium. So the
+choice is not "resample or use ffmpeg", it is:
+
+| path | what it costs |
+|---|---|
+| `MediaRecorder` → WebM/Opus → **ffmpeg** → WAV | a second binary to resolve, a second `ENOENT`/setup failure class, a second process spawn per turn, an extra install step in the README, and GPL-3.0-or-later in a dependency set that is otherwise entirely permissive |
+| **AudioWorklet → raw PCM → 44-byte WAV header** | ~35 lines of pure, unit-testable code and no dependency at all |
+
+The second row wins on every axis, which is why it is the one being built.
+
+- **16 kHz is requested at the source** as an optimisation — a third of the bytes crossing IPC
+  and less for Whisper to resample — **not as a requirement**. If a device hands back 48 kHz the
+  app writes a 48 kHz WAV and `whisper-cli` deals with it. There is no resampling code here, and
+  no guard is needed for a constraint that does not exist.
 - `AnalyserNode` drives a visible level meter. A meter is not decoration — it is the only
   evidence the user has that the microphone is live, and its absence is the most common reason a
   voice UI feels broken.
@@ -304,6 +318,8 @@ getUserMedia → AudioContext({ sampleRate: 16000 }) → AudioWorklet → Float3
   before the user has pressed anything reads as spyware and burns the permission prompt.
 - Microphone permission has **three** outcomes, and the denied-permanently one names the exact
   place to fix it: *System Settings → Privacy & Security → Microphone*.
+- `whisper-cli -oj` writes a JSON file whose `transcription[].text` is the transcript, so the
+  adapter parses a declared shape rather than scraping stdout.
 
 ### Voice out (the brief's stretch goal)
 
@@ -442,8 +458,8 @@ Every version is the current stable at the time of writing, and each one is a ch
 | **Node** | 26.x | the runtime the toolchain is pinned to; `engine-strict` refuses to install on anything else rather than warning and continuing |
 
 Not used, deliberately: no state-management library (one state machine, held in one hook), no CSS
-framework (the design deliverable is a small custom surface), no i18n library (§10), no `ffmpeg`
-(§6), no native keyboard hook (§12).
+framework (the design deliverable is a small custom surface), no i18n library (§10), no `ffmpeg` (§6 —
+the transcriber decodes WAV itself), no native keyboard hook (§12).
 
 ---
 
