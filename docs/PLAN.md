@@ -441,7 +441,7 @@ writing the same `notes/` is a bug that will not reproduce.
 ## 9. Version marker
 
 One SemVer number, in one place: the `version` field of `package.json`. It is read at build time
-and rendered in the window during development as `v0.1.0 · dev`, so a test run shows at a glance
+and rendered in the window during development as `v<version> · dev`, so a test run shows at a glance
 whether the build on screen is the one just changed.
 
 **Bump policy for this project: every code change bumps the patch level**, which is stricter than

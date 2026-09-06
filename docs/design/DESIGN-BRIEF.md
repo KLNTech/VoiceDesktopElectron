@@ -182,7 +182,8 @@ to be covered by §4's short-hold acknowledgement or needs a surface of its own 
 
 ## 6. Version badge
 
-A small, permanent `v0.1.0 · dev` marker in the title bar, quiet enough to ignore and legible
+A small, permanent `v<version> · dev` marker in the title bar (the number comes from
+`package.json`; the canvas artboards render whatever was current when they were drawn), quiet enough to ignore and legible
 enough to read across a desk. It exists so that during manual testing it is obvious at a glance
 whether the running build is the one just changed.
 
