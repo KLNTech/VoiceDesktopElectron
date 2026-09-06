@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "docs:pdf": "scripts/docs-pdf.sh \"docs/$(date +%F)-voicedesk-architecture.pdf\" 'VoiceDesk \u2014 architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
+    "docs:pdf": "scripts/docs-pdf.sh docs/voicedesk-architecture.pdf 'VoiceDesk \u2014 architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run"
