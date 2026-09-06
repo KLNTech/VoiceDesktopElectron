@@ -80,8 +80,15 @@ curl -L -o ~/.whisper/ggml-base.en.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 ```
 
-For markedly better accuracy at ~1.6 GB, use `ggml-large-v3-turbo.bin` from the same location and
-point `VOICEDESK_WHISPER_MODEL` at it.
+That is the default, chosen so first-run setup takes seconds. **For markedly better accuracy**
+at ~1.6 GB, download `ggml-large-v3-turbo.bin` from the same location and point
+`VOICEDESK_WHISPER_MODEL` at it:
+
+```bash
+curl -L -o ~/.whisper/ggml-large-v3-turbo.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
+export VOICEDESK_WHISPER_MODEL=~/.whisper/ggml-large-v3-turbo.bin
+```
 
 ### 4 · A coding-agent CLI ✅
 
@@ -129,7 +136,8 @@ Everything has a working default; set these only to override.
 
 1. Hold the big button — or hold **Space** while the window has focus.
 2. Speak. The meter moves while the microphone is live.
-3. Release. Your words appear as text, then the agent's reply appears under them.
+3. Release. Your words appear as text, then the agent's reply appears under them — and is
+   read back aloud by the macOS voice.
 4. Look in `notes/` — the files there were written by the agent, never by the app.
 
 ---
@@ -139,10 +147,12 @@ Everything has a working default; set these only to override.
 Filled in as the build progresses; empty here means not yet done, not overlooked.
 
 - **Works:** —
-- **Cut, and what that stops catching:** see [`docs/PLAN.md`](docs/PLAN.md) §12. In short: no
-  packaged-artifact test and no visual regression tier, so a defect that only appears in a
-  signed, sandboxed `.app` and any UI appearance regression have no gate. One Playwright launch
-  is kept deliberately, so "nothing executes in the renderer" is *not* among the gaps.
+- **Cut, and what that stops catching:** this delivery is a **development build** — there is
+  no packaged `.app`, no signing and no CI/CD; see [`docs/PLAN.md`](docs/PLAN.md) §13 and the
+  future-work table at the end of [`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md). Nothing
+  in the repository exercises a packaged artifact, so defects that only appear there have no
+  gate at all, and neither does any UI appearance regression. One Playwright launch is kept
+  deliberately, so "nothing executes in the renderer" is *not* among the gaps.
 - **Time actually spent:** tracked and reported honestly at the end. A truthful four hours beats
   a claimed ninety minutes.
 
@@ -201,6 +211,15 @@ which keeps every dependency in this project permissively licensed.
 
 Exact versions are pinned in `package-lock.json`, which is the authoritative list; this table is
 the human-readable copy of it and is regenerated whenever a dependency changes.
+
+---
+
+## Not in this delivery
+
+Named here so nobody goes looking: there is **no packaged `.app` or `.dmg`, no code signing
+or notarisation, and no CI/CD pipeline**. The delivery is the development build described
+above. The full list, with the reason for each, is the future-work table at the end of
+[`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md).
 
 ---
 

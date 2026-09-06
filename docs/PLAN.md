@@ -293,8 +293,10 @@ getUserMedia → AudioContext({ sampleRate: 16000 }) → AudioWorklet → Float3
 
 ### Voice out (the brief's stretch goal)
 
-`say`, the macOS built-in, behind `SpeechSynthesizer`. Zero dependencies, on-device, one
-`execFile`. It is a stretch goal and it stays cheap or it does not ship.
+**Decided: in scope.** `say`, the macOS built-in, behind `SpeechSynthesizer`. Zero
+dependencies, on-device, one `execFile`, and the reply is spoken back after it is shown. It
+stays this cheap or it does not ship — a neural voice would be a second adapter, not a
+rewrite.
 
 ---
 
@@ -446,26 +448,29 @@ a requirement the brief states as "hold a key **or button**".
 
 ## 13. Packaging
 
-The primary target is `npm run dev` on a clean machine, because that is what the README promises
-and what a reviewer will run. `electron-builder` produces an unsigned `.app`/`.dmg` for anyone who
-wants one; **signing, notarisation and stapling are out of scope**, which means a downloaded
-build is Gatekeeper-blocked until opened via right-click → Open. That is stated in the README
-rather than discovered.
+**Decided: out of scope for this delivery.** The whole promise is `npm run dev` on a clean
+machine, which is exactly what the README documents and exactly what gets tested. Packaging,
+signing, notarisation and a CI/CD pipeline are listed as future work at the end of
+`docs/WORK-BREAKDOWN.md`.
 
-The packaged build carries `NSMicrophoneUsageDescription` in `Info.plist`. Without it the
-permission prompt never appears and `getUserMedia` fails with no explanation.
+> After this cut, the class of defect running against no check is anything that only appears in
+> a **packaged** build — an `asar` path assumption, a spawned binary that is not in the bundle, a
+> missing `Info.plist` key. Nothing in this repository exercises a packaged artifact, so that
+> whole class arrives, if it arrives, on the day someone first runs `electron-builder`.
 
----
+The microphone usage description (`NSMicrophoneUsageDescription`) is written into the build
+configuration anyway. It costs one line, and without it a future packaged build fails
+`getUserMedia` with no prompt and no explanation — which is the least debuggable failure in this
+entire application.
 
-## 14. Open decisions
+## 14. Decisions taken
 
-Recorded here rather than guessed silently:
+The three questions this plan opened, and their answers:
 
-1. **Which agent CLI ships as the default adapter.** `claude -p` is assumed (it is what is
-   installed and what the brief names first). `codex exec` and `cursor-agent -p` are a second
-   adapter each, not a change to the use case.
-2. **Whether the spoken reply (§6) ships at all.** It is the brief's stretch goal, gated on the
-   rest being complete and the time budget honest.
-3. **Which Whisper model is the default.** `base.en` (~150 MB) makes the first run fast to set
-   up; `large-v3-turbo` (~1.6 GB) is markedly more accurate and is already on this machine. The
-   README will name one as default and the other as one config line.
+1. **Default agent CLI** — `claude -p`, tested against `2.1.263`. `codex exec` and
+   `cursor-agent -p` remain a second adapter each, not a change to the use case.
+2. **Spoken reply** — **in scope**, via the macOS `say` binary behind `SpeechSynthesizer` (§6).
+3. **Default Whisper model** — **`base.en`** (~150 MB). It keeps first-run setup to seconds,
+   which is what the "runs on a clean machine" criterion is actually measuring.
+   `large-v3-turbo` is one `VOICEDESK_WHISPER_MODEL` away and the README says so.
+4. **Packaging** — **out of scope** (§13); dev build only, future work recorded.

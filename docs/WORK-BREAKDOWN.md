@@ -30,8 +30,7 @@ S1 toolchain + window ─┬─► S4 IPC contract ─┬─► S5 capture ─�
 S3 domain (parallel) ──┘                    ├─► S6 whisper ──┤
                                             ├─► S7 agent CLI ┤
 S2 arch gate (parallel with S3)             └─► S10 smoke ───┘
-                                                              S9 TTS (stretch, last)
-                                                              S12 packaging (optional)
+                                                              S9 TTS (last)
 ```
 
 ---
@@ -114,8 +113,9 @@ four failure screens, the about/credits sheet, every string through `t()`.
 Scope: `MacSaySynthesizer` behind the port, plus the control that triggers it.
 
 - **Acceptance:** *"Stretch, only if you're inside the budget: the reply is spoken back."*
-- **Complexity:** 3 · **Parallelism:** PARALLEL (last) · **Status:** PLANNED — ships only if the
-  time budget is honest without it.
+- **Complexity:** 3 · **Parallelism:** PARALLEL (last) · **Status:** PLANNED — confirmed in
+  scope. It is the cheapest point the brief offers and it stays cheap: one adapter, one
+  control, no new dependency.
 
 ### S10 — the one end-to-end
 Scope: a single Playwright `_electron` launch that starts the real app, asserts the preload
@@ -135,14 +135,6 @@ versions, which is also the data behind the about panel.
 - **Complexity:** 4 · **Parallelism:** SEQUENTIAL (written incrementally from S1 onward, closed
   last) · **Status:** IN PROGRESS
 
-### S12 — packaging *(optional)*
-Scope: `electron-builder` producing an unsigned `.app`/`.dmg`, with the microphone usage
-description in `Info.plist`.
-
-- **Acceptance:** a build exists that runs on another Mac after right-click → Open; signing and
-  notarisation are explicitly out of scope and said so in the README.
-- **Complexity:** 4 · **Parallelism:** PARALLEL (late) · **Status:** PLANNED
-
 ---
 
 ## How each subtask is run
@@ -161,9 +153,29 @@ criterion above it, checked against the brief.
 
 ---
 
-## Questions that must be answered before S7 and S8 start
+## Answered before the build started
 
-1. **Default Whisper model** — `base.en` (~150 MB, fast setup) or `large-v3-turbo` (~1.6 GB,
-   markedly better, already present on this machine)? Affects README install time.
-2. **Stretch goal** — is the spoken reply (S9) wanted, or is the time better spent on S8?
-3. **Packaging** — is S12 in scope, or is `npm run dev` the whole delivery?
+1. **Default Whisper model** — `base.en` (~150 MB). Fast first run beats accuracy on a
+   criterion that is literally "it runs on a clean machine following your README".
+   `large-v3-turbo` stays one environment variable away.
+2. **Spoken reply (S9)** — in scope, via the macOS `say` binary.
+3. **Packaging** — not in this delivery. `npm run dev` is the whole promise, and the cost of
+   that cut is written into `docs/PLAN.md` §13 rather than left implied.
+
+---
+
+## Future work — not in this delivery
+
+Recorded so the absence is a decision rather than an oversight. None of it is started, none of
+it is promised, and the README does not claim any of it.
+
+| # | item | why it is not now |
+|---|---|---|
+| F1 | **Packaged build** — `electron-builder` producing `.app` and `.dmg`, with `NSMicrophoneUsageDescription` in `Info.plist` | the delivery is a dev build; nothing in the repo exercises a packaged artifact today |
+| F2 | **Code signing, notarisation, stapling** | needs a paid Apple Developer account and certificates on the build machine — an external dependency, not an engineering decision |
+| F3 | **CI** — typecheck, unit tests, the architecture gate and the one Playwright launch on every push | the gates exist and run locally; wiring them to a runner is a day's work that buys nothing until more than one person commits |
+| F4 | **CD** — tagged release publishing the signed artifact | strictly after F1–F3; a release pipeline without a signed artifact publishes something nobody can open |
+| F5 | **Auto-update** | only meaningful once F4 exists |
+| F6 | **Second agent adapter** (`codex exec`, `cursor-agent -p`) | the port exists from day one, so this is an adapter and a line in the composition root — cheap later, wasted now |
+| F7 | **Second language** | the lookup table and `t()` ship in this build; a locale is a JSON file and a switch |
+| F8 | **Global hold-to-talk** while another app is focused | needs a native keyboard hook rebuilt per Electron version plus an Accessibility permission — see `docs/PLAN.md` §12 |
