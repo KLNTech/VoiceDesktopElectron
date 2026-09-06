@@ -396,19 +396,32 @@ signal during manual testing, so it has to move whenever the code does.
 
 ## 10. Localisation
 
-English only today, structured so a second language costs a file and no refactor:
+**Exactly one language ships: English.** Not "English first" — English only. What is built now
+is the *seam* that makes a second language cheap, and nothing beyond it.
 
 ```
-src/renderer/i18n/en.json      { "talk.hold": "Hold to talk", … }
-src/renderer/i18n/index.ts     t(key) — reads the active locale, falls back to en
+src/renderer/i18n/en.json      { "talk.hold": "Hold to talk", "err.mic.title": "…", … }
+src/renderer/i18n/index.ts     t(key: MessageKey): string   — one dictionary, one lookup
 ```
 
-No i18n library: one dictionary, one lookup function, no plural rules and no interpolation until
-something needs them. Adding `pl.json` and a locale switch is the whole cost of language two.
-Every user-visible string goes through `t()` from the first commit — retrofitting that is the
-expensive half, and it is the half being avoided here.
+**Built now**
 
----
+- every user-visible string lives in `en.json` and reaches the screen through `t()`;
+- `MessageKey` is derived from the keys of `en.json`, so a typo in a key is a compile error and
+  a string added to the UI without a dictionary entry does not build.
+
+**Deliberately not built**
+
+- no second locale file — no `pl.json`, not even an empty one;
+- no language switcher, no locale detection, no `Intl` fallback chain;
+- no i18n library, no plural rules, no gendered forms, no interpolation. The moment a string
+  genuinely needs a placeholder, `t()` grows one parameter — that is the whole migration.
+
+The reason for building the seam and none of the machinery: the expensive half of localisation
+is not translating, it is **finding every hard-coded string afterwards**. Doing it from the
+first commit costs nothing; retrofitting it costs a pass over the entire UI. Adding language two
+is then one JSON file, one line in the composition of `t()`, and a decision about where the
+switch lives — recorded as future work, not as a stub sitting in the repository waiting for it.
 
 ## 11. Tech stack, and why
 

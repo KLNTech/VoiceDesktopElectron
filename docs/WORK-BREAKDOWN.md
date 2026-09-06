@@ -103,7 +103,8 @@ No second CLI adapter is written; the port already makes one cheap when it is wa
 
 ### S8 — the interface
 Scope: implement the approved design — the eight states, the talk control with its meter, the
-four failure screens, the about/credits sheet, every string through `t()`.
+four failure screens, the about/credits sheet, and every string through `t()` against the one
+locale that ships (English). No second locale, no switcher — see `docs/PLAN.md` §10.
 
 - **Acceptance:** *"UI: generate it with Claude Design … it looks intentional and is usable"*,
   and each artboard state is recognisable in the running app.
