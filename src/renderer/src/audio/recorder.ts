@@ -140,7 +140,7 @@ function makeContext(): AudioContext {
  * Settings. Collapsing them sends someone to the wrong screen.
  */
 async function classifyMicError(error: unknown): Promise<TurnFailure> {
-  const name = (error as DOMException | undefined)?.name ?? ''
+  const name = error instanceof DOMException ? error.name : ''
 
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
     return { kind: 'no-microphone' }
@@ -153,7 +153,7 @@ async function classifyMicError(error: unknown): Promise<TurnFailure> {
 
 async function denialKind(): Promise<MicDenial> {
   try {
-    const status = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+    const status = await navigator.permissions.query({ name: 'microphone' })
     return status.state === 'denied' ? 'system-settings' : 'retryable'
   } catch {
     // A browser that cannot answer is not evidence of a recorded denial; say the recoverable

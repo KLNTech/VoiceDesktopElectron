@@ -107,7 +107,7 @@ export function useTurn(): {
   // The meter is driven from a frame loop, and only while recording. A meter that keeps
   // running after the hold is a meter that lies about the microphone being open.
   useEffect(() => {
-    if (state.k !== 'recording') return
+    if (state.k !== 'recording') return undefined
     let frame = 0
     const tick = (): void => {
       setLevel(recorder.current?.level() ?? 0)
@@ -147,10 +147,15 @@ export function useTurn(): {
   return { state, level, turns, notice, beginHold, endHold, dismiss }
 }
 
-/** The bridge takes an ArrayBuffer; hand it exactly the recorded bytes and no more. */
+/**
+ * The bridge takes an ArrayBuffer; hand it exactly the recorded bytes and no more.
+ *
+ * Built by copying into a fresh buffer rather than slicing the view's own: `Float32Array.buffer`
+ * is an `ArrayBufferLike`, so slicing it needs a cast to claim it is an `ArrayBuffer`, and that
+ * claim is exactly the kind the compiler cannot check.
+ */
 function toArrayBuffer(samples: Float32Array): ArrayBuffer {
-  return samples.buffer.slice(
-    samples.byteOffset,
-    samples.byteOffset + samples.byteLength,
-  ) as ArrayBuffer
+  const copy = new ArrayBuffer(samples.byteLength)
+  new Float32Array(copy).set(samples)
+  return copy
 }

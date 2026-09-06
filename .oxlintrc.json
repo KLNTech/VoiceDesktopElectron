@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "promise",
+    "react",
+    "react-perf"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn",
+    "pedantic": "off",
+    "style": "off"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "no-console": "off",
+    "promise/no-return-wrap": "error",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "react/react-in-jsx-scope": "off",
+    "no-underscore-dangle": "off",
+    "unicorn/require-module-specifiers": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "unicorn/require-post-message-target-origin": "off",
+    "import/no-unassigned-import": "off"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "ignorePatterns": [
+    "out/**",
+    "dist/**",
+    "node_modules/**",
+    "docs/**"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/renderer/src/audio/pcm-worklet.js"
+      ],
+      "env": {
+        "browser": true
+      },
+      "globals": {
+        "AudioWorkletProcessor": "readonly",
+        "registerProcessor": "readonly",
+        "sampleRate": "readonly"
+      }
+    }
+  ]
+}
