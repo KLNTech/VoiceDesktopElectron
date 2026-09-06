@@ -211,11 +211,35 @@ body {
   height: 26px;
   margin: 10px 0 6px;
 }
+/*
+ * The bar SHAPE lives here, not in the component.
+ *
+ * Seven fixed weights describing a symmetric hump are presentation, and keeping them in JSX
+ * meant building a style object per bar on every animation frame. The component now publishes
+ * one number — `--level`, 0..1 — and CSS derives each height from it, so a frame update writes
+ * a single custom property instead of seven inline styles.
+ */
 .meter i {
   width: 4px;
   border-radius: 1px;
   background: #a3560b;
   display: block;
+  height: calc(3px + var(--level, 0) * var(--weight) * 22px);
+}
+.meter i:nth-child(1),
+.meter i:nth-child(7) {
+  --weight: 0.33;
+}
+.meter i:nth-child(2),
+.meter i:nth-child(6) {
+  --weight: 0.58;
+}
+.meter i:nth-child(3),
+.meter i:nth-child(5) {
+  --weight: 0.88;
+}
+.meter i:nth-child(4) {
+  --weight: 1;
 }
 
 .hint {

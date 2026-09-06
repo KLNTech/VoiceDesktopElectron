@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { failed, succeeded, type Outcome } from '../../domain/model/turn'
 import type { Transcript } from '../../domain/model/transcript'
 import type { AudioClip, Transcriber } from '../../domain/ports/Transcriber'
+import { couldNotFinish, readSpawnFailure } from '../process/spawn-failure'
 import { encodeWav } from './wav'
 
 const run = promisify(execFile)
@@ -89,30 +90,24 @@ export class WhisperCppTranscriber implements Transcriber {
   }
 
   private classify(error: unknown): Parameters<typeof failed>[0] {
-    // Narrowed with `in` rather than asserted: the shape of a thrown value is a claim about
-    // someone else's code, and `as` would let a changed shape read as `undefined` silently.
-    const field = (key: string): unknown =>
-      typeof error === 'object' && error !== null && key in error
-        ? Reflect.get(error, key)
-        : undefined
+    // Every field this reads, and the three traps in them, are documented once in
+    // `spawn-failure.ts` — including why an abort and a deadline cannot be told apart here.
+    const failure = readSpawnFailure(error)
 
-    if (field('code') === 'ENOENT') {
+    if (failure.errno === 'ENOENT' || failure.errno === 'EACCES') {
       return {
         kind: 'setup',
         what: 'whisper',
         hint: `${this.binPath ?? 'whisper-cli'} could not be run. Reinstall it with \`brew install whisper-cpp\`.`,
       }
     }
-    // execFile reports both a kill-on-timeout and an abort this way; either means the run could
-    // not finish, and the child is already dead.
-    if (field('killed') === true || field('name') === 'AbortError') {
+    // A deadline, an abort, or a signal from outside: the run did not reach its own end and the
+    // child is already dead. Reading `killed` alone missed the last of those, and reported it
+    // as a failed transcription carrying an empty message.
+    if (couldNotFinish(failure)) {
       return { kind: 'timeout', afterMs: this.timeoutMs }
     }
-    const stderr = field('stderr')
-    return {
-      kind: 'transcribe-failed',
-      stderr: lastLine(typeof stderr === 'string' ? stderr : String(error)),
-    }
+    return { kind: 'transcribe-failed', stderr: failure.detail }
   }
 }
 
@@ -125,8 +120,3 @@ function exists(path: string): boolean {
   }
 }
 
-/** The last line is the one that says what went wrong; the rest is whisper's banner. */
-function lastLine(text: string): string {
-  const lines = text.trim().split('\n')
-  return (lines[lines.length - 1] ?? '').trim().slice(0, 500)
-}
