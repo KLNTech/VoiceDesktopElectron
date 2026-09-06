@@ -23,5 +23,6 @@
   "err.emptyBody": "The recording was silent. Hold the button and speak.",
   "err.dismiss": "Dismiss",
   "err.mic.retryTitle": "The microphone was not allowed",
-  "err.mic.retryBody": "Nothing was recorded. Hold the button again and allow access when macOS asks."
+  "err.mic.retryBody": "Nothing was recorded. Hold the button again and allow access when macOS asks.",
+  "state.error": "error"
 }

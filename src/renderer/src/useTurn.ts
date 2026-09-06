@@ -98,7 +98,7 @@ export function useTurn(): {
       // Iteration 1 ends at the transcript on screen; the agent step lands in iteration 2, and
       // until it does the turn completes here rather than pretending to think.
       apply({ t: 'transcribed' })
-      apply({ t: 'replied', spoken: false })
+      apply({ t: 'replied', speech: 'not-requested' })
     })
   }, [apply, fail])
 

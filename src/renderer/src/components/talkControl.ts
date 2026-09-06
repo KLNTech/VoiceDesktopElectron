@@ -22,5 +22,9 @@ export function talkControl(state: TurnState): TalkControl {
     case 'idle':
     case 'error':
       return 'ready'
+    default: {
+      const unhandled: never = state
+      throw new Error(`unhandled turn state: ${JSON.stringify(unhandled)}`)
+    }
   }
 }
