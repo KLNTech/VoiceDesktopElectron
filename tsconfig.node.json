@@ -34,5 +34,6 @@
     "src/domain/**/*.ts",
     "src/infrastructure/**/*.ts",
     "shared/**/*.ts"
-  ]
+  ],
+  "exclude": ["test/**/*.web.test.ts"]
 }

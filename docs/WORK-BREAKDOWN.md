@@ -1,4 +1,4 @@
-# VoiceDesk — work breakdown
+# VoiceDeskElectron — work breakdown
 
 The build, decomposed before any of it is written. Each subtask carries a scope, an acceptance
 criterion **quoted from the client brief** (not "tests are green"), a complexity rating 1–10 that

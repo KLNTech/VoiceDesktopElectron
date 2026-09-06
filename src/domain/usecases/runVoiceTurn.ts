@@ -1,4 +1,4 @@
-import { failed, succeeded, type Outcome } from '../model/turn'
+import { failed, succeeded, type Outcome, type SpeechOutcome } from '../model/turn'
 import { isEmpty, type Transcript } from '../model/transcript'
 import type { AgentReply } from '../model/agent-reply'
 import type { AudioClip, Transcriber } from '../ports/Transcriber'
@@ -27,8 +27,8 @@ export interface VoiceTurnRequest {
 export interface VoiceTurnResult {
   readonly transcript: Transcript
   readonly reply: AgentReply
-  /** Whether the reply was actually read aloud. Asking for speech does not guarantee it. */
-  readonly spoken: boolean
+  /** What became of the spoken reply — asking for speech does not guarantee getting it. */
+  readonly speech: SpeechOutcome
 }
 
 export type RunVoiceTurn = (
@@ -61,11 +61,15 @@ export function makeRunVoiceTurn(ports: VoiceTurnPorts): RunVoiceTurn {
     if (answer.k === 'failed') return answer
 
     const reply = answer.value
-    if (!request.speakReply) return succeeded({ transcript, reply, spoken: false })
+    if (!request.speakReply) return succeeded({ transcript, reply, speech: 'not-requested' })
 
     // A voice that will not start is not a failed turn: the answer is already on screen, and
     // failing the turn here would throw away a reply the user can read.
     const spoken = await ports.voice.speak(reply.text, signal)
-    return succeeded({ transcript, reply, spoken: spoken.k === 'ok' })
+    return succeeded({
+      transcript,
+      reply,
+      speech: spoken.k === 'ok' ? 'spoken' : 'unavailable',
+    })
   }
 }
