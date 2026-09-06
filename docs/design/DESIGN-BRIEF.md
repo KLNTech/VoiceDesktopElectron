@@ -99,9 +99,11 @@ Design it as a sheet over the main window, not as a second window.
 
 ## 8. Copy
 
-All strings are English and all of them go through a lookup table, so keep them short and
-self-contained — a second language is a file, not a redesign. Use exactly the copy in §4–§7;
-where a string is missing, propose one and mark it as proposed.
+All strings are English, and English is the only language this build ships. They go through
+one lookup table, so keep them short and self-contained — a second language should later cost
+a file, not a redesign. **Do not design a language switcher**: there is nothing to switch
+between. Use exactly the copy in §4–§7; where a string is missing, propose one and mark it as
+proposed.
 
 ## 9. Constraints and non-goals
 

@@ -142,6 +142,10 @@ Everything has a working default; set these only to override.
    read back aloud by the macOS voice.
 4. Look in `notes/` — the files there were written by the agent, never by the app.
 
+The interface is **English only**. Every string goes through a single lookup table, so adding
+a language later is a JSON file rather than a pass over the whole UI — but no second language
+ships in this build and there is no language switcher.
+
 ---
 
 ## What works · what was cut · how long it took
