@@ -4,7 +4,10 @@ The build, decomposed before any of it is written. Each subtask carries a scope,
 criterion **quoted from the client brief** (not "tests are green"), a complexity rating 1–10 that
 decides how much review it gets, and a parallelism label.
 
-Status values: `PLANNED` · `IN PROGRESS` · `BLOCKED` · `DONE (accepted)`. Nothing is reported
+Status values: `PLANNED` · `IN PROGRESS` · `BLOCKED` · `BUILT (awaiting acceptance)` · `DONE
+(accepted)`. `BUILT` means the code exists and its own checks pass; it becomes `DONE` only when a
+reviewer has checked it against the acceptance criterion above it, which for this build is the
+iteration's pull request. Nothing is reported
 done until its acceptance criterion has been checked against the brief — and the umbrella is
 done only when every subtask is, not when most of them are.
 
@@ -70,7 +73,7 @@ version badge reading `package.json`.
 
 - **Acceptance:** *"It runs on a clean machine following your README"* — `npm ci && npm run dev`
   on a machine that has never seen this repo opens a window showing `v0.1.0 · dev`.
-- **Complexity:** 5 · **Parallelism:** SEQUENTIAL (root) · **Status:** PLANNED
+- **Complexity:** 5 · **Parallelism:** SEQUENTIAL (root) · **Status:** BUILT (awaiting acceptance)
 
 ### S2 — the architecture gate
 Scope: Vitest, plus the ~15-line test that fails when `domain/` imports the platform, proven by
@@ -78,7 +81,7 @@ breaking it once.
 
 - **Acceptance:** the gate has been *seen* to redden on a deliberate violation, and asserts it
   scanned a non-empty file list.
-- **Complexity:** 3 · **Parallelism:** PARALLEL (with S3) · **Status:** PLANNED
+- **Complexity:** 3 · **Parallelism:** PARALLEL (with S3) · **Status:** BUILT (awaiting acceptance)
 
 ### S3 — the domain
 Scope: `TurnState`, `TurnFailure`, the three ports, and `runVoiceTurn` as a function taking
@@ -87,7 +90,7 @@ ports as arguments. Unit tests for the turn machine, including the 250 ms rule a
 
 - **Acceptance:** the whole flow *audio → transcript → reply* is expressible and testable with
   no Electron, no binaries and no network.
-- **Complexity:** 5 · **Parallelism:** PARALLEL (needs nothing from S1) · **Status:** PLANNED
+- **Complexity:** 5 · **Parallelism:** PARALLEL (needs nothing from S1) · **Status:** BUILT (awaiting acceptance)
 
 ### S4 — the IPC contract
 Scope: `shared/ipc.ts` (channel names + zod schemas, one declaration), the preload bridge with
@@ -96,7 +99,7 @@ cross as typed data.
 
 - **Acceptance:** the renderer can reach exactly the five declared messages and nothing else;
   `ipcRenderer` is not exposed and no bridge function takes a caller-supplied channel name.
-- **Complexity:** 6 · **Parallelism:** SEQUENTIAL (after S1, S3) · **Status:** PLANNED
+- **Complexity:** 6 · **Parallelism:** SEQUENTIAL (after S1, S3) · **Status:** BUILT (awaiting acceptance)
 
 ### S5 — push-to-talk capture
 Scope: hold-to-talk on the button and on `Space`; `getUserMedia` on first hold; `AudioContext`
@@ -105,7 +108,7 @@ events; microphone permission handled as three distinct outcomes.
 
 - **Acceptance:** *"Hold a key or button, speak, release → your words appear as text in the
   window."*
-- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S4) · **Status:** PLANNED
+- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S4) · **Status:** BUILT (awaiting acceptance)
 
 ### S6 — the transcription adapter
 Scope: `WhisperCppTranscriber` over `execFile`, the pure Float32 → 16-bit PCM WAV encoder,
@@ -114,7 +117,7 @@ binary + model resolution that survives a Finder-launched app's minimal `PATH`, 
 
 - **Acceptance:** speech becomes text with no API key, no account and no network; a missing
   binary or model says which one and how to install it.
-- **Complexity:** 6 · **Parallelism:** PARALLEL (with S5, S7) · **Status:** PLANNED
+- **Complexity:** 6 · **Parallelism:** PARALLEL (with S5, S7) · **Status:** BUILT (awaiting acceptance)
 
 ### S7 — the agent CLI adapter
 Scope: `ClaudeCliAgentRunner` and nothing else — **`claude -p` only**. Argv array via

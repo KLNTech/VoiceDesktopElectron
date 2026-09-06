@@ -17,11 +17,10 @@ Repository name: `VoiceDesktopElectron`. Product name: VoiceDesk.
 |---|---|
 | **Architecture** | planned and written down: [`docs/PLAN.md`](docs/PLAN.md) |
 | **Work breakdown** | [`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md) — subtasks, complexity, what can run in parallel |
-| **UI design** | brief written ([`docs/design/DESIGN-BRIEF.md`](docs/design/DESIGN-BRIEF.md)); canvas not yet filled in |
-| **Application code** | **not written yet** |
+| **UI design** | canvas at version `0.3.1` — 800 × 720, two panels; the brief ([`docs/design/DESIGN-BRIEF.md`](docs/design/DESIGN-BRIEF.md)) describes it. **Not implemented yet**: the interface is built in one pass against the artboards |
+| **Application code** | iteration 1 built: the window, the turn machine, push-to-talk capture and on-device transcription. The agent is **not** wired up yet — see the iteration table in [`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md) |
 
-Nothing below the *Requirements* heading has been executed end to end, because there is nothing
-to execute yet. Each step is marked ✅ where it has been verified on the development machine and
+Not everything below the *Requirements* heading has been executed end to end. Each step is marked ✅ where it has been verified on the development machine and
 ◻︎ where it has not. This table and those marks are updated as the build proceeds — a README
 that claims more than the repository does is the one defect this file cannot have.
 
@@ -178,13 +177,23 @@ ships in this build and there is no language switcher.
 
 Filled in as the build progresses; empty here means not yet done, not overlooked.
 
-- **Works:** —
+- **Works:** `npm ci && npm run dev` opens the window. Hold the button (or **Space**), speak,
+  release — the level meter follows your voice, and your words appear as text, transcribed on
+  this machine with no network. Setup problems name the thing that is missing and the command
+  that fixes it. Verified on the development machine; the microphone half needs a human to grant
+  the permission, so it is not covered by an automated check.
+- **Not working yet:** the agent. Iteration 1 stops at the transcript on screen, deliberately —
+  holding and speaking works, but nothing is asked of `claude -p` and nothing is written to
+  `notes/` yet.
 - **Cut, and what that stops catching:** this delivery is a **development build** — there is
   no packaged `.app`, no signing and no CI/CD; see [`docs/PLAN.md`](docs/PLAN.md) §13 and the
   future-work table at the end of [`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md). Nothing
   in the repository exercises a packaged artifact, so defects that only appear there have no
-  gate at all, and neither does any UI appearance regression. One Playwright launch is kept
-  deliberately, so "nothing executes in the renderer" is *not* among the gaps.
+  gate at all, and neither does any UI appearance regression. The one end-to-end launch that
+  closes the "nothing executes in the renderer" gap is subtask S10, in the next iteration; until
+  it lands, the renderer's only automated gate is a static check on the built bundle. That gate
+  exists because it already caught a real defect: the audio worklet was being inlined as a
+  `data:` URL, which the app's own CSP refuses — invisible in `npm run dev`, fatal in a build.
 - **Time actually spent:** tracked and reported honestly at the end. A truthful four hours beats
   a claimed ninety minutes.
 
@@ -228,12 +237,10 @@ Not present in the built app; listed for completeness.
 | component | version | licence |
 |---|---|---|
 | [TypeScript](https://github.com/microsoft/TypeScript) | 7.0.2 | Apache-2.0 |
-| [Vite](https://github.com/vitejs/vite) | 8.2.2 | MIT |
+| [Vite](https://github.com/vitejs/vite) | 7.3.6 | MIT |
 | [electron-vite](https://github.com/alex8088/electron-vite) | 5.0.0 | MIT |
-| [electron-builder](https://github.com/electron-userland/electron-builder) | 26.15.3 | MIT |
-| [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react) | 6.1.1 | MIT |
+| [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react) | 5.2.0 | MIT |
 | [Vitest](https://github.com/vitest-dev/vitest) | 5.0.0 | MIT |
-| [Playwright](https://github.com/microsoft/playwright) | 1.63.0 | Apache-2.0 |
 | [Testing Library](https://github.com/testing-library/react-testing-library) | 16.3.3 | MIT |
 | [jsdom](https://github.com/jsdom/jsdom) | 30.0.1 | MIT |
 
@@ -244,6 +251,12 @@ permissively licensed.
 
 Exact versions are pinned in `package-lock.json`, which is the authoritative list; this table is
 the human-readable copy of it and is regenerated whenever a dependency changes.
+
+**One pin is deliberately not the newest release.** Vite is held at 7.3.6 rather than 8.x
+because `electron-vite` 5.0.0 — the newest stable — declares a peer range of `^5 || ^6 || ^7`,
+and `@vitejs/plugin-react` 6.x requires Vite 8, so the two cannot both be current. The set above
+is the newest combination that actually resolves, all of it generally available. It moves the
+day `electron-vite` supports Vite 8.
 
 ---
 
