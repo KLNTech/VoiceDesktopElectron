@@ -1,6 +1,8 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, session } from 'electron'
 
+import { buildPorts, readEnv } from './composition-root'
+import { registerIpcHandlers } from './ipc'
 import { createWindow } from './window'
 
 /**
@@ -58,6 +60,10 @@ if (!app.requestSingleInstanceLock()) {
         },
       })
     })
+
+    // The composition root runs once, before any window can ask for anything.
+    const env = readEnv(isDev, __APP_VERSION__)
+    registerIpcHandlers(env, buildPorts(env))
 
     mainWindow = createWindow()
     loadRenderer(mainWindow)

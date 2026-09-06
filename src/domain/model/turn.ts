@@ -31,6 +31,7 @@ export type TurnState =
 export type TurnFailure =
   | { kind: 'mic-denied'; permanent: boolean }
   | { kind: 'setup'; what: 'agent-cli' | 'agent-auth' | 'whisper' | 'model'; hint: string }
+  | { kind: 'transcribe-failed'; stderr: string }
   | { kind: 'agent-failed'; stderr: string }
   | { kind: 'timeout'; afterMs: number }
   | { kind: 'empty-speech' }
