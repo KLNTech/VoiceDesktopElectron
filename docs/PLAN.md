@@ -212,7 +212,9 @@ away from ordinary speech. An argv array has no quoting to get wrong.
 
 It also removes the login-shell surprise, and on this machine that surprise is **already
 present**: `claude` resolves to a *zsh function*, not to a binary. An interactive shell sees the
-function; `execFile` never will. §5.5 is the consequence.
+function; `execFile` never will — so the flags the agent runs with are exactly the ones §5.2
+lists, and nothing an operator's shell profile or wrapper function adds to them. §5.6 is the
+other consequence.
 
 ### 5.2 The flags, and why each one is there
 
@@ -224,6 +226,7 @@ are another program's flags and they can move.
 |---|---|
 | `-p <prompt>` | non-interactive: print the answer and exit |
 | `--output-format json` | a machine-readable envelope. Text output is for humans and changes without warning |
+| `--model haiku` | the cheapest current tier, pinned by **alias** rather than by a dated snapshot: an alias cannot resolve to an Opus-tier model, it follows the cheap tier when the cheap tier moves, and it outlives the retirement of any one snapshot. `VOICEDESK_AGENT_MODEL` (default `haiku`) is the deliberate opt-in for something stronger |
 | `--allowedTools Read,Write,Edit,Glob,Grep` | exactly the capability the feature needs — read and write notes |
 | `--restricted` | removes the built-in command-running tools and web fetch entirely. Belt to the allowlist's braces |
 | `--add-dir <notesDir>` | states the writable area explicitly rather than relying on `cwd` alone |
@@ -234,6 +237,16 @@ are another program's flags and they can move.
 
 Deliberately **not** granted: `Bash` and every other command-running tool. "The agent might need
 it" trades the entire permission boundary for a maybe.
+
+**Why the model is pinned, and pinned to an alias.** This is a demonstration application, and a
+demo that quietly reaches for an expensive tier bills someone for a decision nobody made. At
+Anthropic's published list rates Haiku 4.5 is $1 per million input tokens and $5 per million
+output against $5 / $25 for Opus 5 — five times cheaper on both halves, on a 200 K context
+window. Those are list rates and they move, which is the other half of the argument for the
+alias: `haiku` pins *the cheapest current tier*, not a price. The result is auditable rather than
+trusted — the JSON envelope carries `modelUsage`, keyed by the model that actually ran (observed
+here: `claude-haiku-4-5-20251001`, `canonicalModel: claude-haiku-4-5`), and `total_cost_usd`,
+which for a one-line probe was about $0.01.
 
 ### 5.3 Parse the reply, never cast it
 
@@ -253,21 +266,46 @@ after.** A resumed session the CLI has forgotten is a *normal outcome*, not a cr
 retries once as a fresh session and says so in the reply metadata. The alternative — a blank
 agent re-reading `notes/` every turn — also works, and is what the fallback lands on.
 
-### 5.5 Three distinguishable outcomes, never two
+### 5.5 Authentication is the CLI's own keychain login
+
+**Decision: VoiceDesk passes no API key, reads no token, and puts no secret in a process
+argument or an environment variable.** `claude` authenticates itself from the credentials the
+user's own terminal login left in the macOS **login keychain** — a generic-password item under
+the service name `Claude Code-credentials` in `~/Library/Keychains/login.keychain-db`, whose
+account attribute is the macOS user. Observed here: a `claude -p … --model haiku` run exited
+`0` with `ANTHROPIC_API_KEY` unset in the environment.
+
+That is a smaller blast radius, not a convenience. A credential the app never holds cannot be
+logged by it, captured in a crash report, or handed to a child process by mistake — "we
+mishandled a key" is not among this application's failure modes at all. The entry belongs to
+Claude Code; VoiceDesk checks only that it is there and never reads it.
+
+The second consequence is a failure class. *"Nobody ever signed in on this machine"* is a
+**setup** problem with an exact fix — run `claude` in a terminal and log in — and the presence
+of that keychain item is checkable *before* anything is spawned. So the adapter preflights it
+and reports its own outcome, for the same reason a missing binary gets one: a failure filed
+under the wrong cause sends the user to debug the wrong program.
+
+### 5.6 Five distinguishable outcomes, never two
 
 | outcome | meaning | what the user is told |
 |---|---|---|
 | exit `0` + parseable stdout | success | the reply |
 | non-zero, or unparseable stdout | the agent failed | trimmed `stderr`, and that it was the agent |
 | `ENOENT` | **setup** failure, not agent failure | "`claude` was not found — install it, or set `VOICEDESK_AGENT_BIN`" |
+| no keychain login (§5.5) | **setup** failure, not agent failure | "Claude Code is not signed in — run `claude` in a terminal and log in" |
 | timeout | the call could not end | the child is killed and the turn fails cleanly |
 
-The third row is the one that matters most here. An Electron app launched from Finder inherits a
-**minimal `PATH`** that does not include `~/.local/bin` or `/opt/homebrew/bin`, so a binary that
-works in the terminal is missing in the app. `resolveBinary` therefore checks, in order: an
-explicit env var, a settings value, then a list of known install locations — and when all fail it
-reports a *setup* problem with the exact fix. Collapsing that into "the agent failed" sends the
-user debugging the wrong thing.
+The two **setup** rows are the ones that matter most here. An Electron app launched from Finder
+inherits a **minimal `PATH`** that does not include `~/.local/bin` or `/opt/homebrew/bin`, so a
+binary that works in the terminal is missing in the app. `resolveBinary` therefore checks, in
+order: an explicit env var, a settings value, then a list of known install locations — and when
+all fail it reports a *setup* problem with the exact fix. Collapsing that into "the agent
+failed" sends the user debugging the wrong thing.
+
+The signed-out row is the same mistake wearing different clothes: the binary is present, it
+runs, and the turn still fails — but nothing about this app is broken and the fix is a one-time
+login. Both are settled before the prompt is ever sent.
 
 ---
 
@@ -508,7 +546,7 @@ entire application.
 
 ## 14. Decisions taken
 
-The three questions this plan opened, and their answers:
+The questions this plan opened, and their answers:
 
 1. **Default agent CLI** — `claude -p`, tested against `2.1.263`. `codex exec` and
    `cursor-agent -p` remain a second adapter each, not a change to the use case.
@@ -517,3 +555,13 @@ The three questions this plan opened, and their answers:
    which is what the "runs on a clean machine" criterion is actually measuring.
    `large-v3-turbo` is one `VOICEDESK_WHISPER_MODEL` away and the README says so.
 4. **Packaging** — **out of scope** (§13); dev build only, future work recorded.
+5. **Agent model** — **`haiku`, pinned by alias** on every call (§5.2). This is a demonstration
+   build: the cheapest current tier is the right default, and an expensive one must not be
+   reachable by accident. The alias form is the decision — it cannot resolve to an Opus-tier
+   model and it survives the retirement of any dated snapshot; today it resolves to
+   `claude-haiku-4-5`. `VOICEDESK_AGENT_MODEL` (default `haiku`) is the explicit opt-in for
+   anything stronger, so a stronger model is chosen, never inherited.
+6. **Agent authentication** — the **CLI's own macOS Keychain login** (§5.5). VoiceDesk passes no
+   API key and holds no credential, so a secret is not in its blast radius; a machine that has
+   never signed in is a *setup* failure with an exact fix, caught by a preflight before the
+   spawn rather than reported as an agent failure.

@@ -12,13 +12,17 @@ done only when every subtask is, not when most of them are.
 
 ## Branching, and a deliberate deviation
 
-The usual rule here is one branch per subtask, squash-merged. **This build commits directly to
-`main` instead**, because the brief grades the commit history itself:
+The usual rule here is one branch per subtask, squash-merged. **The squash is the part this
+build drops**, because the brief grades the commit history itself:
 
 > *"Don't clean up the history. Real commits as you go, not one squash at the end."*
 
-A squash merge per subtask is exactly the cleanup that sentence forbids. The trade is that
-`main` carries intermediate states; that is the point.
+A squash merge is exactly the cleanup that sentence forbids. So each iteration is built on its
+own branch and merged by a pull request **without squashing**: every commit made along the way
+arrives on `main` as it was written, and the client also gets a reviewable PR per iteration —
+which committing straight to `main`, the earlier reading of the same rule, would not have given
+them. The trade is identical either way: `main` carries intermediate states; that is the
+point.
 
 ---
 
@@ -115,12 +119,20 @@ binary + model resolution that survives a Finder-launched app's minimal `PATH`, 
 ### S7 — the agent CLI adapter
 Scope: `ClaudeCliAgentRunner` and nothing else — **`claude -p` only**. Argv array via
 `execFile` with no shell, the full flag set from `docs/PLAN.md` §5.2, zod-parsed JSON reply,
-session continuity carried explicitly, timeout that kills, and the three-way outcome mapping.
-No second CLI adapter is written; the port already makes one cheap when it is wanted.
+session continuity carried explicitly, timeout that kills, and the outcome mapping of §5.6.
+Two choices inside it carry their own reasons: the model is pinned to `--model haiku` — the
+cheapest current tier, by alias so it can never resolve to an Opus-tier model — with
+`VOICEDESK_AGENT_MODEL` (default `haiku`) as the deliberate opt-in for anything stronger; and
+authentication is the CLI's own macOS Keychain login, so no API key is passed or read and a
+keychain preflight turns *"never signed in"* into a distinct **setup** failure. No second CLI
+adapter is written; the port already makes one cheap when it is wanted.
 
 - **Acceptance:** *"add milk to my shopping list"* creates or edits `notes/shopping.md`, and
   *"what's on my list?"* answers from it — through the CLI, not the raw API, with the agent's
-  blast radius bounded to `notes/`.
+  blast radius bounded to `notes/`. Two further checks, both answerable without reading the
+  code: the reply envelope's `modelUsage` names a Haiku model, so the cheap tier is proved by
+  the reply rather than assumed; and on a machine that has never signed in, the app says *"run
+  `claude` in a terminal and log in"* instead of reporting an agent failure.
 - **Complexity:** 7 · **Parallelism:** PARALLEL (with S5, S6) · **Status:** PLANNED
 
 ### S8 — the interface
@@ -203,3 +215,4 @@ it is promised, and the README does not claim any of it.
 | F6 | **Second agent adapter** (`codex exec`, `cursor-agent -p`) | the port exists from day one, so this is an adapter and a line in the composition root — cheap later, wasted now |
 | F7 | **Second language** | the lookup table and `t()` ship in this build; a locale is a JSON file and a switch |
 | F8 | **Global hold-to-talk** while another app is focused | needs a native keyboard hook rebuilt per Electron version plus an Accessibility permission — see `docs/PLAN.md` §12 |
+| F9 | **Running the agent on a larger model tier** | not an omission: `--model haiku` is pinned on purpose because this is a demonstration build and an expensive tier must not be reachable by accident. `VOICEDESK_AGENT_MODEL` exists so an operator can opt in deliberately; nothing in this delivery raises the tier by itself, and no quality claim is made for one that does |

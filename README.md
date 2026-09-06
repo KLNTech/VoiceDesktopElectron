@@ -36,10 +36,13 @@ Development machine: macOS 26.6.2 (Apple Silicon), Node 26.8.1, npm 11.19.0.
 | macOS | 13 or newer | the app is macOS-only; the spoken reply uses the system `say` |
 | [Homebrew](https://brew.sh) | any current | installs the speech-to-text engine |
 | Node.js | 26.x | the toolchain is pinned to it, and the install **refuses** rather than warns on a different major |
-| A coding-agent CLI | see step 4 | the app drives an agent CLI, not a model API |
+| Claude Code CLI | see step 4 | the app drives an agent CLI, not a model API — and it has to be **signed in** on this machine |
 | A microphone | — | built-in is fine |
 
-No API key is needed for speech-to-text: transcription runs locally.
+**No API key, for either half.** Transcription runs locally, and the agent authenticates
+through the Claude Code CLI's own macOS Keychain login (step 4). VoiceDesk never asks for,
+stores or passes an API key or token: the keychain entry belongs to Claude Code, the app checks
+only that it is there, and it never reads the secret.
 
 ---
 
@@ -92,22 +95,44 @@ curl -L -o ~/.whisper/ggml-large-v3-turbo.bin \
 export VOICEDESK_WHISPER_MODEL=~/.whisper/ggml-large-v3-turbo.bin
 ```
 
-### 4 · A coding-agent CLI ✅
+### 4 · Claude Code — installed **and signed in** ✅
 
-VoiceDesk drives a coding agent through its command line. Install **one**:
+VoiceDesk drives a coding agent through its command line, and the one adapter in this build is
+Claude Code (`claude -p`). Two things have to be true, not one: the CLI is on this machine, and
+you have signed in to it **in a terminal on this machine**. The sign-in is the half that matters
+to the app — it is what writes the credentials into the macOS Keychain that VoiceDesk later
+depends on, without VoiceDesk ever handling them itself.
 
 ```bash
-# Claude Code — the default this repo is built and tested against
+# 1 — install
 curl -fsSL https://claude.ai/install.sh | bash
-claude --version
+claude --version                    # this repo is built and tested against 2.1.263
+
+# 2 — sign in, once, in a terminal, as the macOS user who will run the app
+claude                              # follow the login prompts, then leave the session
+
+# 3 — confirm the whole path, non-interactively (costs a fraction of a cent)
+claude -p 'Reply with exactly: ok' --model haiku --output-format json --strict-mcp-config
 ```
 
-`codex exec` and `cursor-agent -p` are supported by the same seam but ship as a second adapter;
-the default adapter is Claude Code, tested against **2.1.263**.
+Step 3 is the one worth running, because it exercises exactly what the app will do. **Verified
+on the development machine:** it exits `0` and prints a JSON object whose `subtype` is
+`success`, whose `is_error` is `false`, and whose `result` is the word `ok`. Two more fields in
+that object are worth a glance — `modelUsage` names the model that actually ran (here
+`claude-haiku-4-5-…`), and `total_cost_usd` is what the call cost: about $0.01.
+
+`codex exec` and `cursor-agent -p` fit the same seam, but each would need a second adapter, and
+that is not in this delivery — see the future-work table in
+[`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md).
 
 > **If the app cannot find it:** an app launched from Finder gets a minimal `PATH` that does not
 > include `~/.local/bin` or `/opt/homebrew/bin`. Set `VOICEDESK_AGENT_BIN` to the absolute path
 > (`which claude` in a terminal, or `~/.local/bin/claude`) and the app will use it directly.
+
+> **If the app says you are not signed in:** the binary is there, the keychain entry is not.
+> That entry lives in *your* login keychain, so the sign-in has to have happened as the macOS
+> user who runs the app — not as another account, and not on another machine. Do step 2, re-run
+> the step 3 probe, then restart VoiceDesk.
 
 ### 5 · VoiceDesk itself ◻︎
 
@@ -128,6 +153,7 @@ Everything has a working default; set these only to override.
 | variable | default | what it does |
 |---|---|---|
 | `VOICEDESK_AGENT_BIN` | `claude` resolved from a known list | absolute path to the agent CLI |
+| `VOICEDESK_AGENT_MODEL` | `haiku` | which model the agent CLI runs on. The default pins the cheapest current tier on purpose — this is a demonstration build, and an expensive tier must not be reachable by accident |
 | `VOICEDESK_WHISPER_BIN` | `whisper-cli` resolved from a known list | absolute path to the transcriber |
 | `VOICEDESK_WHISPER_MODEL` | `~/.whisper/ggml-base.en.bin` | which model file to load |
 | `VOICEDESK_NOTES_DIR` | `./notes` beside the app | the only folder the agent may write to |
