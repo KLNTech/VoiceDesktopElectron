@@ -27,6 +27,11 @@ export class MicrophoneRecorder {
   private analyser: AnalyserNode | null = null
   private chunks: Float32Array[] = []
   private startedAt = 0
+
+  /** When the hold began, on the recorder's clock — the one `heldMs` is measured against. */
+  get startedAtMs(): number {
+    return this.startedAt
+  }
   private meterBuffer = new Float32Array(1_024)
 
   async start(): Promise<StartResult> {
