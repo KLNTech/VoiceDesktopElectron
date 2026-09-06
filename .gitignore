@@ -1,9 +1,31 @@
+# ── build output & dependencies ───────────────────────────────────────────────
 node_modules/
 dist/
+dist-electron/
+release/
 out/
-build/
-*.log
-npm-debug.log*
+*.tsbuildinfo
+*.local
+
+# ── secrets ───────────────────────────────────────────────────────────────────
 .env
-.env.local
+.env.*
+!.env.example
+
+# ── the assistant's working directory ─────────────────────────────────────────
+# Local tooling only: it is symlinked to repos that exist on one machine, so shipping it
+# would hand the next person dangling links, and it is no part of the application.
+.claude/
+CLAUDE.md
+.mcp.json
+
+# ── the notes the app writes ──────────────────────────────────────────────────
+# The agent reads and writes here at runtime. It is user data, not source.
+notes/
+!notes/.gitkeep
+
+# ── editor / OS ───────────────────────────────────────────────────────────────
 .DS_Store
+.vscode/*
+!.vscode/extensions.json
+*.log
