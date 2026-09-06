@@ -1,4 +1,4 @@
-import type { TurnFailure } from '../../domain/model/turn'
+import type { TurnFailure, TurnState } from '../../domain/model/turn'
 import { TalkButton } from './components/TalkButton'
 import { talkControl } from './components/talkControl'
 import { t } from './i18n'
@@ -52,8 +52,15 @@ export function App(): React.JSX.Element {
   )
 }
 
-function stateLabel(k: string): string {
+/**
+ * Takes the tag union, not `string`. Widening the parameter to a primitive is what silently
+ * disables the exhaustiveness check below: with `k: string` the `never` guard can never be
+ * reached, so adding a turn state would compile and quietly render the wrong label.
+ */
+function stateLabel(k: TurnState['k']): string {
   switch (k) {
+    case 'idle':
+      return t('state.idle')
     case 'recording':
       return t('state.recording')
     case 'transcribing':
@@ -62,8 +69,12 @@ function stateLabel(k: string): string {
       return t('state.thinking')
     case 'speaking':
       return t('state.speaking')
-    default:
-      return t('state.idle')
+    case 'error':
+      return t('state.error')
+    default: {
+      const unhandled: never = k
+      throw new Error(`unhandled turn state: ${String(unhandled)}`)
+    }
   }
 }
 
@@ -126,5 +137,9 @@ function describe(failure: TurnFailure): {
       }
     case 'empty-speech':
       return { title: t('err.emptyTitle'), body: t('err.emptyBody'), category: 'failure' }
+    default: {
+      const unhandled: never = failure
+      throw new Error(`unhandled failure: ${JSON.stringify(unhandled)}`)
+    }
   }
 }

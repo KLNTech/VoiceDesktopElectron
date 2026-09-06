@@ -123,5 +123,12 @@ export function nextTurnState(state: TurnState, event: TurnEvent): TurnState {
 
     case 'dismissed':
       return state.k === 'error' ? { k: 'idle' } : state
+
+    default: {
+      // Add an event and every switch missing it fails to compile — a refactor the compiler
+      // drives rather than one someone remembers to do.
+      const unhandled: never = event
+      throw new Error(`unhandled turn event: ${JSON.stringify(unhandled)}`)
+    }
   }
 }
