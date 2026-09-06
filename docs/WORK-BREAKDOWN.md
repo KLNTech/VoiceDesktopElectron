@@ -35,6 +35,28 @@ S2 arch gate (parallel with S3)             └─► S10 smoke ───┘
 
 ---
 
+## Iterations
+
+The build is not one run. What the current iteration contains is stated here, so "not done yet"
+and "not in scope yet" never look the same from the outside.
+
+| iteration | subtasks | what exists at the end of it |
+|---|---|---|
+| **1 — current** | **S1 → S6** | the app opens, records while you hold, shows a level meter, and turns your speech into text on screen. It does **not** reach the agent yet |
+| 2 | S7, S10 | the transcript reaches `claude -p`, edits `notes/`, and the reply comes back; one end-to-end launch guards the seam |
+| 3 | S8, S9, S11 | the approved design is implemented, the reply is spoken, and the README is closed out with real numbers |
+
+S8 stays `BLOCKED` until the design canvas is filled in and approved, which is why it is in the
+last iteration and not the first — the UI is implemented against an approved design, not
+sketched twice.
+
+Iteration 1 deliberately stops **before** the agent adapter. Speech-to-text on screen is a
+complete, demonstrable thing on its own, and it is the half that carries the hardware, the
+permissions and the process boundaries — the half worth reviewing before anything is layered on
+top of it.
+
+---
+
 ## Subtasks
 
 ### S1 — toolchain and a window that opens
