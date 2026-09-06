@@ -80,7 +80,9 @@ curl -L -o ~/.whisper/ggml-base.en.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 ```
 
-That is the default, chosen so first-run setup takes seconds. **For markedly better accuracy**
+That is the default. **Verified on the development machine:** the download took under 3
+seconds, and the model transcribes short commands in ~0.5 s per two seconds of speech.
+It does occasionally run two words together (`Add milk` → `Admilk`). **For markedly better accuracy**
 at ~1.6 GB, download `ggml-large-v3-turbo.bin` from the same location and point
 `VOICEDESK_WHISPER_MODEL` at it:
 
@@ -205,9 +207,10 @@ Not present in the built app; listed for completeness.
 | [Testing Library](https://github.com/testing-library/react-testing-library) | 16.3.3 | MIT |
 | [jsdom](https://github.com/jsdom/jsdom) | 30.0.1 | MIT |
 
-**Not used, on purpose:** `ffmpeg` is GPL-3.0-or-later, and the audio path is designed so it is
-never needed — microphone input is captured directly at 16 kHz and encoded to WAV in a few lines,
-which keeps every dependency in this project permissively licensed.
+**Not used, on purpose:** `ffmpeg` is GPL-3.0-or-later. `whisper-cli` decodes WAV itself, so the
+app captures raw microphone samples and writes the WAV header in a few lines rather than
+recording a compressed format and transcoding it. Every dependency in this project is therefore
+permissively licensed.
 
 Exact versions are pinned in `package-lock.json`, which is the authoritative list; this table is
 the human-readable copy of it and is regenerated whenever a dependency changes.
