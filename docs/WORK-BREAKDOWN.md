@@ -4,7 +4,10 @@ The build, decomposed before any of it is written. Each subtask carries a scope,
 criterion **quoted from the client brief** (not "tests are green"), a complexity rating 1–10 that
 decides how much review it gets, and a parallelism label.
 
-Status values: `PLANNED` · `IN PROGRESS` · `BLOCKED` · `DONE (accepted)`. Nothing is reported
+Status values: `PLANNED` · `IN PROGRESS` · `BLOCKED` · `BUILT (awaiting acceptance)` · `DONE
+(accepted)`. `BUILT` means the code exists and its own checks pass; it becomes `DONE` only when a
+reviewer has checked it against the acceptance criterion above it, which for this build is the
+iteration's pull request. Nothing is reported
 done until its acceptance criterion has been checked against the brief — and the umbrella is
 done only when every subtask is, not when most of them are.
 
@@ -12,13 +15,17 @@ done only when every subtask is, not when most of them are.
 
 ## Branching, and a deliberate deviation
 
-The usual rule here is one branch per subtask, squash-merged. **This build commits directly to
-`main` instead**, because the brief grades the commit history itself:
+The usual rule here is one branch per subtask, squash-merged. **The squash is the part this
+build drops**, because the brief grades the commit history itself:
 
 > *"Don't clean up the history. Real commits as you go, not one squash at the end."*
 
-A squash merge per subtask is exactly the cleanup that sentence forbids. The trade is that
-`main` carries intermediate states; that is the point.
+A squash merge is exactly the cleanup that sentence forbids. So each iteration is built on its
+own branch and merged by a pull request **without squashing**: every commit made along the way
+arrives on `main` as it was written, and the client also gets a reviewable PR per iteration —
+which committing straight to `main`, the earlier reading of the same rule, would not have given
+them. The trade is identical either way: `main` carries intermediate states; that is the
+point.
 
 ---
 
@@ -66,7 +73,7 @@ version badge reading `package.json`.
 
 - **Acceptance:** *"It runs on a clean machine following your README"* — `npm ci && npm run dev`
   on a machine that has never seen this repo opens a window showing `v0.1.0 · dev`.
-- **Complexity:** 5 · **Parallelism:** SEQUENTIAL (root) · **Status:** PLANNED
+- **Complexity:** 5 · **Parallelism:** SEQUENTIAL (root) · **Status:** BUILT (awaiting acceptance)
 
 ### S2 — the architecture gate
 Scope: Vitest, plus the ~15-line test that fails when `domain/` imports the platform, proven by
@@ -74,7 +81,7 @@ breaking it once.
 
 - **Acceptance:** the gate has been *seen* to redden on a deliberate violation, and asserts it
   scanned a non-empty file list.
-- **Complexity:** 3 · **Parallelism:** PARALLEL (with S3) · **Status:** PLANNED
+- **Complexity:** 3 · **Parallelism:** PARALLEL (with S3) · **Status:** BUILT (awaiting acceptance)
 
 ### S3 — the domain
 Scope: `TurnState`, `TurnFailure`, the three ports, and `runVoiceTurn` as a function taking
@@ -83,7 +90,7 @@ ports as arguments. Unit tests for the turn machine, including the 250 ms rule a
 
 - **Acceptance:** the whole flow *audio → transcript → reply* is expressible and testable with
   no Electron, no binaries and no network.
-- **Complexity:** 5 · **Parallelism:** PARALLEL (needs nothing from S1) · **Status:** PLANNED
+- **Complexity:** 5 · **Parallelism:** PARALLEL (needs nothing from S1) · **Status:** BUILT (awaiting acceptance)
 
 ### S4 — the IPC contract
 Scope: `shared/ipc.ts` (channel names + zod schemas, one declaration), the preload bridge with
@@ -92,7 +99,7 @@ cross as typed data.
 
 - **Acceptance:** the renderer can reach exactly the five declared messages and nothing else;
   `ipcRenderer` is not exposed and no bridge function takes a caller-supplied channel name.
-- **Complexity:** 6 · **Parallelism:** SEQUENTIAL (after S1, S3) · **Status:** PLANNED
+- **Complexity:** 6 · **Parallelism:** SEQUENTIAL (after S1, S3) · **Status:** BUILT (awaiting acceptance)
 
 ### S5 — push-to-talk capture
 Scope: hold-to-talk on the button and on `Space`; `getUserMedia` on first hold; `AudioContext`
@@ -101,7 +108,7 @@ events; microphone permission handled as three distinct outcomes.
 
 - **Acceptance:** *"Hold a key or button, speak, release → your words appear as text in the
   window."*
-- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S4) · **Status:** PLANNED
+- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S4) · **Status:** BUILT (awaiting acceptance)
 
 ### S6 — the transcription adapter
 Scope: `WhisperCppTranscriber` over `execFile`, the pure Float32 → 16-bit PCM WAV encoder,
@@ -110,17 +117,25 @@ binary + model resolution that survives a Finder-launched app's minimal `PATH`, 
 
 - **Acceptance:** speech becomes text with no API key, no account and no network; a missing
   binary or model says which one and how to install it.
-- **Complexity:** 6 · **Parallelism:** PARALLEL (with S5, S7) · **Status:** PLANNED
+- **Complexity:** 6 · **Parallelism:** PARALLEL (with S5, S7) · **Status:** BUILT (awaiting acceptance)
 
 ### S7 — the agent CLI adapter
 Scope: `ClaudeCliAgentRunner` and nothing else — **`claude -p` only**. Argv array via
 `execFile` with no shell, the full flag set from `docs/PLAN.md` §5.2, zod-parsed JSON reply,
-session continuity carried explicitly, timeout that kills, and the three-way outcome mapping.
-No second CLI adapter is written; the port already makes one cheap when it is wanted.
+session continuity carried explicitly, timeout that kills, and the outcome mapping of §5.6.
+Two choices inside it carry their own reasons: the model is pinned to `--model haiku` — the
+cheapest current tier, by alias so it can never resolve to an Opus-tier model — with
+`VOICEDESK_AGENT_MODEL` (default `haiku`) as the deliberate opt-in for anything stronger; and
+authentication is the CLI's own macOS Keychain login, so no API key is passed or read and a
+keychain preflight turns *"never signed in"* into a distinct **setup** failure. No second CLI
+adapter is written; the port already makes one cheap when it is wanted.
 
 - **Acceptance:** *"add milk to my shopping list"* creates or edits `notes/shopping.md`, and
   *"what's on my list?"* answers from it — through the CLI, not the raw API, with the agent's
-  blast radius bounded to `notes/`.
+  blast radius bounded to `notes/`. Two further checks, both answerable without reading the
+  code: the reply envelope's `modelUsage` names a Haiku model, so the cheap tier is proved by
+  the reply rather than assumed; and on a machine that has never signed in, the app says *"run
+  `claude` in a terminal and log in"* instead of reporting an agent failure.
 - **Complexity:** 7 · **Parallelism:** PARALLEL (with S5, S6) · **Status:** PLANNED
 
 ### S8 — the interface
@@ -203,3 +218,4 @@ it is promised, and the README does not claim any of it.
 | F6 | **Second agent adapter** (`codex exec`, `cursor-agent -p`) | the port exists from day one, so this is an adapter and a line in the composition root — cheap later, wasted now |
 | F7 | **Second language** | the lookup table and `t()` ship in this build; a locale is a JSON file and a switch |
 | F8 | **Global hold-to-talk** while another app is focused | needs a native keyboard hook rebuilt per Electron version plus an Accessibility permission — see `docs/PLAN.md` §12 |
+| F9 | **Running the agent on a larger model tier** | not an omission: `--model haiku` is pinned on purpose because this is a demonstration build and an expensive tier must not be reachable by accident. `VOICEDESK_AGENT_MODEL` exists so an operator can opt in deliberately; nothing in this delivery raises the tier by itself, and no quality claim is made for one that does |
