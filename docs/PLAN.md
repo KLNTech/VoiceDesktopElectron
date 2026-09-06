@@ -162,11 +162,25 @@ call the use case, wrap. A handler containing business logic has moved policy in
 Each port is named for its **role**; each adapter for its **technology**. That naming is what
 tells you which side of the line a file is on.
 
-| port (domain) | adapter (infrastructure) | second implementation that justifies the seam |
+| port (domain) | adapter that ships | second implementation, in the repo on day one |
 |---|---|---|
-| `Transcriber` | `WhisperCppTranscriber` | a hosted STT API — the brief explicitly allows either, so the seam is real on day one |
-| `AgentRunner` | `ClaudeCliAgentRunner` | `codex exec`, `cursor-agent -p` — the brief names three CLIs |
-| `SpeechSynthesizer` | `MacSaySynthesizer` | a neural TTS binary; also the null implementation when speech is off |
+| `Transcriber` | `WhisperCppTranscriber` | the test double — every domain test needs one, because the real adapter spawns a process |
+| `AgentRunner` | `ClaudeCliAgentRunner`, and **only** `claude -p` | the test double, same reason |
+| `SpeechSynthesizer` | `MacSaySynthesizer` | the null implementation used when speech is off, plus the test double |
+
+**Only one agent CLI is implemented.** `codex exec` and `cursor-agent -p` are future work, not
+scaffolding to be written now.
+
+That makes the usual objection fair, so it gets answered here rather than in review: *an
+interface with one implementation is an over-build.* It would be — if the count were one. It is
+not. Every adapter above reaches the OS, so **every test of the use case needs a substitute**,
+and that substitute is a real second implementation living in this repository from the first
+test onward. The port is what makes the domain testable without a microphone, a model file and
+a spawned agent; the fact that it also makes a second CLI cheap later is a side effect, not the
+argument.
+
+The litmus stays sharp for everything else: if a future port cannot name its second
+implementation — a test double counts, "someday" does not — it does not get written.
 
 ```ts
 // src/domain/ports/AgentRunner.ts

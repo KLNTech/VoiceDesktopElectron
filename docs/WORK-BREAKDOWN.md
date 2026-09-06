@@ -91,9 +91,10 @@ binary + model resolution that survives a Finder-launched app's minimal `PATH`, 
 - **Complexity:** 6 · **Parallelism:** PARALLEL (with S5, S7) · **Status:** PLANNED
 
 ### S7 — the agent CLI adapter
-Scope: `ClaudeCliAgentRunner` — argv array via `execFile` with no shell, the full flag set from
-`docs/PLAN.md` §5.2, zod-parsed JSON reply, session continuity carried explicitly, timeout that
-kills, and the three-way outcome mapping.
+Scope: `ClaudeCliAgentRunner` and nothing else — **`claude -p` only**. Argv array via
+`execFile` with no shell, the full flag set from `docs/PLAN.md` §5.2, zod-parsed JSON reply,
+session continuity carried explicitly, timeout that kills, and the three-way outcome mapping.
+No second CLI adapter is written; the port already makes one cheap when it is wanted.
 
 - **Acceptance:** *"add milk to my shopping list"* creates or edits `notes/shopping.md`, and
   *"what's on my list?"* answers from it — through the CLI, not the raw API, with the agent's
