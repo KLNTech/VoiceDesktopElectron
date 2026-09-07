@@ -418,6 +418,11 @@ rewrite.
 The preload bridge is a wire format shared by three separately-compiled build outputs, and a
 trust boundary: one XSS in the app's own UI is a compromised client.
 
+**`shared/ipc.ts` is the authority; the block below illustrates its shape.** Where the two
+disagree the file is right and this is stale — which has happened. What keeps the file itself
+honest is `test/wire-matches-domain.test.ts`, whose mutual-assignability assertions fail to
+compile when a schema and the domain type it mirrors drift apart.
+
 ```ts
 // shared/ipc.ts — the single declaration, imported by main, preload and renderer
 export const CH = {
@@ -426,9 +431,16 @@ export const CH = {
   speak:        'turn:speak',
   appInfo:      'app:info',
   notes:        'notes:list',
+  // What macOS says about the microphone. The page cannot find this out for itself: its own
+  // Permissions API answers about Chromium's per-origin permission, not about the OS's decision.
+  micAccess:    'os:mic-access',
   openSettings: 'os:open-settings',
-  state:        'turn:state',
 } as const
+
+// There is deliberately no `state: 'turn:state'`. One existed — schema, a `pushTurnState` in
+// main, an `onTurnState` on the bridge — with no caller at either end, and it was deleted rather
+// than wired up: §11 commits to ONE state machine held in one hook, and a push from main would
+// be a second source of the same state.
 
 export const TranscribeReq = z.object({
   pcm:        z.instanceof(ArrayBuffer).refine(b => b.byteLength <= 8 * 1024 * 1024),

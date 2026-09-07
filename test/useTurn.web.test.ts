@@ -82,7 +82,6 @@ function bridge(overrides: Record<string, unknown> = {}): void {
     speak: async () => ({ k: 'ok', value: null }),
     micAccess: async () => 'granted',
     openSettings: async () => undefined,
-    onTurnState: () => () => undefined,
     ...overrides,
   })
 }

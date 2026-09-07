@@ -89,11 +89,11 @@ describe('what main accepts from the renderer', () => {
     // The silent pass this guards: if registration changed shape, every assertion below would
     // be testing a handler map that does not describe the app.
     //
-    // `CH.state` is deliberately absent: it is the one message main PUSHES rather than answers,
-    // so it has no `handle` and nothing here should expect one. That asymmetry is the contract,
-    // not an oversight, which is why it is named rather than filtered silently.
-    const request = Object.values(CH).filter((channel) => channel !== CH.state)
-    expect([...handlers.keys()].toSorted()).toEqual(request.toSorted())
+    // Every channel is a request→reply channel now. `CH.state` used to be the exception — the
+    // one message main PUSHED — and it was filtered out here; it has since been deleted, because
+    // it had no sender and no subscriber (`shared/ipc.ts` records why). No filter, so a channel
+    // added without a handler reddens instead of being quietly excused.
+    expect([...handlers.keys()].toSorted()).toEqual(Object.values(CH).toSorted())
   })
 
   it('refuses an oversized audio buffer WITHOUT reaching the transcriber', async () => {

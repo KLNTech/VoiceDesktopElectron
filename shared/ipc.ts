@@ -16,7 +16,6 @@ export const CH = {
   notes: 'notes:list',
   micAccess: 'os:mic-access',
   openSettings: 'os:open-settings',
-  state: 'turn:state',
 } as const
 
 export type Channel = (typeof CH)[keyof typeof CH]
@@ -147,14 +146,24 @@ export const MicAccessRes = z.enum([
   'unknown',
 ])
 
-export const TurnStatePush = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('idle') }),
-  z.object({ k: z.literal('recording'), startedAt: z.number(), level: z.number() }),
-  z.object({ k: z.literal('transcribing') }),
-  z.object({ k: z.literal('thinking') }),
-  z.object({ k: z.literal('speaking') }),
-  z.object({ k: z.literal('error'), failure: TurnFailureSchema }),
-])
+/*
+ * There is no `TurnStatePush`, and no `turn:state` channel, ON PURPOSE.
+ *
+ * Both existed here, complete: a schema, a `pushTurnState` in main, an `onTurnState` on the
+ * bridge with an unsubscribe, and a `safeParse` guard on arrival. Nothing called any of it —
+ * `pushTurnState` had zero call sites, and the renderer never subscribed. The suite was green
+ * on a wire that was disconnected at both ends.
+ *
+ * It is deleted rather than wired up because wiring it up is the wrong direction. `docs/PLAN.md`
+ * §11 commits to *one state machine, held in one hook*, and the renderer runs it locally because
+ * §2 needs a key press to change the interface with no round trip. A push from main would be a
+ * SECOND source of the same state, and two sources of one state is the defect, not the feature.
+ *
+ * What the deletion costs, recorded rather than left implied: if main ever needs to tell the
+ * window something it did not ask for — a deadline that fired between turns, a device that
+ * disappeared — there is now no channel for it and one will have to be added back, with a real
+ * consumer written in the same change.
+ */
 
 export type TranscribeReq = z.infer<typeof TranscribeReq>
 export type TranscribeRes = z.infer<typeof TranscribeRes>
@@ -167,7 +176,6 @@ export type NoteFileSchema = z.infer<typeof NoteFileSchema>
 export type NotesListRes = z.infer<typeof NotesListRes>
 export type NoticeSchema = z.infer<typeof NoticeSchema>
 export type MicAccessRes = z.infer<typeof MicAccessRes>
-export type TurnStatePush = z.infer<typeof TurnStatePush>
 
 /**
  * The whole surface the renderer is given. One named method per message: `ipcRenderer` is never
@@ -198,6 +206,4 @@ export interface VoiceDeskBridge {
    * than "show the user where the switch is". Main owns the one URL.
    */
   openSettings(): Promise<void>
-  /** Returns its own unsubscribe — a remounting component that cannot detach leaks a listener. */
-  onTurnState(listener: (state: TurnStatePush) => void): () => void
 }

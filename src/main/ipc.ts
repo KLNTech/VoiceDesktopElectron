@@ -1,4 +1,4 @@
-import { ipcMain, shell, systemPreferences, type BrowserWindow } from 'electron'
+import { ipcMain, shell, systemPreferences } from 'electron'
 
 import {
   AppInfoRes,
@@ -8,7 +8,6 @@ import {
   NotesListRes,
   SpeakReq,
   TranscribeReq,
-  TurnStatePush,
   type AskRes,
   type SpeakRes,
   type TranscribeRes,
@@ -110,10 +109,4 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
       'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
     )
   })
-}
-
-/** The one message main pushes rather than answers. Parsed on the way out as well as in. */
-export function pushTurnState(window: BrowserWindow, state: TurnStatePush): void {
-  if (window.isDestroyed()) return
-  window.webContents.send(CH.state, TurnStatePush.parse(state))
 }
