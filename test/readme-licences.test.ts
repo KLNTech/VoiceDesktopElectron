@@ -73,6 +73,29 @@ describe('the README tells the truth about its dependencies', () => {
     expect(readme).toMatch(new RegExp(`\\*\\*${files} test files\\*\\*`))
   })
 
+  /**
+   * The two numbers the *What this application is* section quotes about the code.
+   *
+   * Both are the kind that go stale without looking stale. The bridge-method count moved twice in
+   * one branch — `micAccess` added, `onTurnState` removed with the dead `turn:state` channel —
+   * and the window size is the one figure the design brief and the code have to agree on.
+   */
+  it('quotes the bridge surface size that `shared/ipc.ts` actually declares', () => {
+    const wire = readFileSync('shared/ipc.ts', 'utf8')
+    const surface = wire.slice(wire.indexOf('export interface VoiceDeskBridge'))
+    const methods = [...surface.matchAll(/^ {2}(\w+)\(/gm)].length
+    expect(methods).toBeGreaterThan(0)
+    expect(readme).toContain(`exactly ${spellOut(methods)} named bridge methods`)
+  })
+
+  it('quotes the window size the code opens', () => {
+    const window = readFileSync('src/main/window.ts', 'utf8')
+    const width = /width:\s*(\d+)/.exec(window)?.[1]
+    const height = /height:\s*(\d+)/.exec(window)?.[1]
+    expect([width, height]).not.toContain(undefined)
+    expect(readme).toContain(`${width} × ${height}`)
+  })
+
   it('names the agent CLI version the flag set was verified against', () => {
     // Another program's version, so it cannot come from the lockfile — but it is load-bearing:
     // `docs/PLAN.md` §5.2 says the flags were checked against a specific release, and those are
@@ -80,6 +103,11 @@ describe('the README tells the truth about its dependencies', () => {
     expect(readme).toMatch(/Claude Code CLI \| 2\.1\.\d+/)
   })
 })
+
+/** The README writes small counts as words, the way prose does. */
+function spellOut(n: number): string {
+  return ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n)
+}
 
 /** Escapes a literal for use inside a RegExp — the labels contain `·`, `.` and `@`. */
 function escape(text: string): string {
