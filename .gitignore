@@ -24,6 +24,20 @@ out/
 CLAUDE.md
 .mcp.json
 
+# ── documents ─────────────────────────────────────────────────────────────────
+# Ignores NEW files under `docs/` — the review reports, renders and snapshots this project
+# generates locally and does not want offered for commit on every `git status`.
+#
+# What it does NOT do, and this is the part worth knowing: `.gitignore` has no effect on a file
+# git is already tracking. `docs/PLAN.md`, `docs/WORK-BREAKDOWN.md`, `docs/design/DESIGN-BRIEF.md`
+# and the architecture PDF stay tracked, stay in a fresh clone, and are still what the README
+# links to. Editing them still shows up as a change.
+#
+# The cost, recorded rather than left to be discovered: a document somebody genuinely wants in
+# the repository from now on has to be added with `git add -f`, and until they do, nothing will
+# mention that it is missing.
+docs/
+
 # ── the notes the app writes ──────────────────────────────────────────────────
 # The agent reads and writes here at runtime. It is user data, not source.
 #

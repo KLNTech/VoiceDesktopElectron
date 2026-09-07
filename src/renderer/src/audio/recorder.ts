@@ -177,7 +177,7 @@ function makeContext(): AudioContext {
  * at all, a denial they can still reverse in the page, and a denial that now lives in System
  * Settings. Collapsing them sends someone to the wrong screen.
  */
-async function classifyMicError(error: unknown): Promise<TurnFailure> {
+export async function classifyMicError(error: unknown): Promise<TurnFailure> {
   const name = error instanceof DOMException ? error.name : ''
 
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
@@ -189,7 +189,7 @@ async function classifyMicError(error: unknown): Promise<TurnFailure> {
   return { kind: 'transcribe-failed', stderr: `microphone: ${String(error)}` }
 }
 
-async function denialKind(): Promise<MicDenial> {
+export async function denialKind(): Promise<MicDenial> {
   /*
    * macOS first, Chromium second — and that order is the whole point.
    *
@@ -220,7 +220,7 @@ async function denialKind(): Promise<MicDenial> {
   }
 }
 
-function concat(chunks: readonly Float32Array[]): Float32Array {
+export function concat(chunks: readonly Float32Array[]): Float32Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   const all = new Float32Array(total)
   let at = 0
