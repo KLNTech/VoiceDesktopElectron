@@ -372,10 +372,18 @@ Not present in the built app; listed for completeness.
 | [oxlint](https://github.com/oxc-project/oxc) | 1.81.0 | MIT |
 | [oxlint-tsgolint](https://github.com/oxc-project/tsgolint) | 7.0.2001 | MIT |
 
-**Not used, on purpose:** `ffmpeg` is GPL-3.0-or-later. `whisper-cli` decodes WAV itself, so the
-app captures raw microphone samples and writes the WAV header in a few lines rather than
-recording a compressed format and transcoding it. Every dependency in this project is therefore
-permissively licensed.
+**Not used, on purpose — and checked, not merely intended:** `ffmpeg` is GPL-3.0-or-later, which
+would reach further into a shipped product than anything else here. `whisper-cli` decodes WAV
+itself, so the app captures raw microphone samples and writes the WAV header in a few lines rather
+than recording a compressed format and transcoding it. Every dependency in this project is
+therefore permissively licensed.
+
+Verified rather than assumed: `ffmpeg` appears nowhere in `package-lock.json`, and the
+`whisper-cli` on this machine links only `libwhisper`, `libggml`, `libggml-base`, `libc++` and
+`libSystem` — Homebrew's declared dependencies for it are `ggml`, `libomp`, `sdl2-compat` and
+`sdl3`. `test/readme-licences.test.ts` holds the lockfile half of that claim. The half a test here
+*cannot* hold is the binary the user installs, which is why F10 carries the constraint explicitly:
+whatever gets vendored has to be checked for it at the moment of vendoring.
 
 Exact versions are pinned in `package-lock.json`, which is the authoritative list; this table is
 the human-readable copy of it and is regenerated whenever a dependency changes.
@@ -403,17 +411,42 @@ nothing above claims any of it. The reason for each, and what it would take, is 
 
 **The install is longer than it should be**
 
-- **F10 — ship Whisper inside the app**, so a new user installs one thing instead of four. Today
-  step 3 of the install is `brew install whisper-cpp` plus a 141 MB model download, and both are
-  ways for a first run to fail before the app has done anything. Measured on the development
-  machine, the engine itself is small — `whisper-cli` is 643 KB and its libraries about 1.1 MB —
-  and effectively the whole cost is the `base.en` model at **141 MB**. The download is the size,
-  so the size is a model choice, not an engine one.
-- **F18 — the microphone permission is granted to "Electron", not to VoiceDesk.** In System
-  Settings → Privacy & Security → Microphone the entry carries Electron's name and icon, because
-  an unpackaged development build *is* Electron: it has no bundle identifier of its own. The user
-  cannot tell which app they are granting, and every Electron app on the machine shares the one
-  switch. This is fixed by F1 and F2 and by nothing short of them.
+- **F10 — ship Whisper inside the app**: the `whisper-cli` binary, its libraries, and
+  `ggml-small.bin`, so a new user installs one thing instead of four. Today step 3 of the install
+  is `brew install whisper-cpp` plus a model download, and both are ways for a first run to fail
+  before the app has done anything.
+
+  **What it costs, measured rather than estimated.** The engine is small: `whisper-cli` is 643 KB
+  and its libraries about 1.1 MB, both read off this machine. The model is the whole download, and
+  the sizes below come from the publisher's own `content-length` — the `base.en` figure matches the
+  file on this disk byte for byte, so the other two are trustworthy:
+
+  | model | size | note |
+  |---|---|---|
+  | `ggml-base.en.bin` | 141 MB | what the app installs today |
+  | `ggml-small.en.bin` | 465 MB | English-only, same size as `small` |
+  | `ggml-small.bin` | 465 MB | **requested** — multilingual |
+
+  So the app goes from a ~2 MB build to roughly **470 MB**. That is accepted on purpose: a user
+  who has to install four things has four chances to give up before the app does anything.
+
+  **One decision inside this one, worth taking deliberately:** `small` and `small.en` are the same
+  size, and `small` is the *multilingual* build. Everything else in this app is English-only — the
+  transcriber is invoked `-l en`, the reply is read in an English voice chosen on purpose, and
+  `i18n/` holds one file. Bundling multilingual `small` while pinning `-l en` buys nothing but the
+  bytes; making it actually multilingual is F7, and it is a larger change than swapping a file.
+
+  **Whatever is vendored has to stay `ffmpeg`-free** — see the licence note above. That is a
+  property of the binary that gets shipped, not of this repository, so it needs checking at the
+  moment of vendoring.
+- **F18 — the consent is not recorded against this application at all.** In System Settings →
+  Privacy & Security → Microphone the entry carries **Electron's** name and icon, not VoiceDesk's,
+  because an unpackaged development build *is* Electron as far as macOS is concerned: it has no
+  bundle identifier of its own. Three consequences, and none of them is cosmetic — the user cannot
+  tell which application they are granting; every Electron app on the machine shares that one
+  switch; and a grant given to VoiceDesk is really given to anything else built on Electron. Fixed
+  by F1 and F2 and by nothing short of them, because a bundle identifier is created at packaging
+  time.
 - **F19 — a missing microphone permission can end up on the wrong board.** Reported from use:
   instead of the microphone board, a *"Setup is incomplete"* dialog appears carrying a filesystem
   path. That board is the `setup` failure, and its body is the failing adapter's hint shown
@@ -440,8 +473,15 @@ nothing above claims any of it. The reason for each, and what it would take, is 
 
 **Signing in, and starting over**
 
-- **F16 — sign in as any account**, rather than inheriting whichever one Claude Code is logged
-  into on this machine, and with it a way to **clear the conversation context** on purpose.
+- **F16 — sign in as any account.** Today the app inherits whichever account Claude Code is signed
+  into on this machine, by checking that its Keychain entry exists and never reading it. Two things
+  follow that a product cannot keep: the user cannot choose the account, and **Claude Code has to
+  be installed at all** — the app has no path of its own to a model.
+- **F20 — clearing the agent window clears the context.** Right now the window and the conversation
+  are separate things: `sessionId` is carried in `useTurn` across turns so *"add milk"* and
+  *"what's on my list?"* are one conversation, and nothing in the interface drops it. Emptying the
+  panel should end the session, not just stop drawing it — otherwise the user believes they started
+  over and the agent does not.
 
 **Checks that run somewhere other than a developer's laptop**
 
@@ -450,6 +490,10 @@ nothing above claims any of it. The reason for each, and what it would take, is 
 - **F17 — a UI happy-path gate that runs AFTER the merge**, not in front of it. The domain
   pipeline stays the thing that blocks a merge; this one drives the window through one whole turn
   and reports, which is exactly the coverage the Playwright cut gave up (see the cut table above).
+- **F4 — CD on the same runner, two artifacts on two events.** A pull request builds a **dev**
+  artifact, so a reviewer can open the thing rather than read about it; a merge to `main` builds a
+  **release** artifact from the version already bumped on the branch. Both need F1 and F2 first —
+  a release pipeline with no signed artifact publishes something nobody can open.
 
 ---
 
