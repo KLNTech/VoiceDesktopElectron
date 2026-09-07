@@ -53,7 +53,7 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
 
   it('exposes exactly one named method per declared channel, and nothing else', () => {
     expect(seen.methods).toEqual(
-      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'onTurnState'].toSorted(),
+      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'openSettings', 'onTurnState'].toSorted(),
     )
     // The bridge must stay enumerable: one method per message, no more.
     expect(seen.methods).toHaveLength(Object.keys(CH).length)

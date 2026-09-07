@@ -1,7 +1,7 @@
 import { mkdir, readdir, realpath } from 'node:fs/promises'
 import { basename, extname, relative, resolve } from 'node:path'
 
-import type { NoteFile, NoteStatus } from '../../domain/model/note-file'
+import type { NoteFile } from '../../domain/model/note-file'
 import type { NotesFolder } from '../../domain/ports/NotesFolder'
 
 /**
@@ -25,7 +25,7 @@ export class MarkdownNotesFolder implements NotesFolder {
     return entries
       .filter((entry) => entry.isFile() && extname(entry.name).toLowerCase() === '.md')
       .map((entry) => entry.name)
-      .sort((a, b) => a.localeCompare(b))
+      .toSorted((a, b) => a.localeCompare(b))
   }
 
   /**
@@ -46,7 +46,7 @@ export class MarkdownNotesFolder implements NotesFolder {
       name,
       // `edited` outranks `read`: opening a file and then rewriting it is one event to report,
       // and the change is the half the user needs to see.
-      status: (edited.has(name) ? 'edited' : read.has(name) ? 'read' : 'unchanged') as NoteStatus,
+      status: edited.has(name) ? 'edited' : read.has(name) ? 'read' : 'unchanged',
     }))
   }
 
@@ -74,13 +74,19 @@ export class MarkdownNotesFolder implements NotesFolder {
      * first.
      */
     const root = await realpath(this.dir).catch(() => resolve(this.dir))
-    const names = new Set<string>()
+    // Resolved concurrently: these are independent `stat` calls on a handful of paths, and
+    // walking them one await at a time adds a round trip per file for no ordering benefit.
+    const resolved = await Promise.all(
+      paths.map((path) => {
+        const absolute = resolve(root, path)
+        // A file the agent deleted has no realpath left; its literal path is the best available
+        // answer and is still subjected to the containment check below.
+        return realpath(absolute).catch(() => absolute)
+      }),
+    )
 
-    for (const path of paths) {
-      const absolute = resolve(root, path)
-      // A file the agent deleted has no realpath left; its literal path is the best available
-      // answer and is still subjected to the containment check below.
-      const real = await realpath(absolute).catch(() => absolute)
+    const names = new Set<string>()
+    for (const real of resolved) {
       const rel = relative(root, real)
       // One segment, still inside, and a note: no separators, no `..`, no absolute escape.
       if (rel !== '' && !rel.startsWith('..') && rel === basename(rel)) names.add(rel)

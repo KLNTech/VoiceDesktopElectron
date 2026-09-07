@@ -9,6 +9,16 @@ export interface CapturedClip {
 
 export type StartResult = { k: 'ok' } | { k: 'failed'; failure: TurnFailure }
 
+/**
+ * The most audio one hold may accumulate, whatever the device's rate.
+ *
+ * 8 MB is the bound `shared/ipc.ts` already declares for the wire, and a Float32 sample is four
+ * bytes, so this is that same limit expressed where it can actually be enforced — before the
+ * memory is spent, rather than after `concat` has built one allocation out of everything and
+ * the schema refuses the result.
+ */
+const MAX_SAMPLES = (8 * 1024 * 1024) / Float32Array.BYTES_PER_ELEMENT
+
 /** 16 kHz is asked for as an optimisation, not required — whisper resamples (`docs/PLAN.md` §6). */
 const PREFERRED_RATE = 16_000
 
@@ -26,6 +36,8 @@ export class MicrophoneRecorder {
   private node: AudioWorkletNode | null = null
   private analyser: AnalyserNode | null = null
   private chunks: Float32Array[] = []
+  /** Samples accepted so far, so the ceiling costs one addition rather than a walk per batch. */
+  private captured = 0
   private startedAt = 0
 
   /** When the hold began, on the recorder's clock — the one `heldMs` is measured against. */
@@ -36,6 +48,7 @@ export class MicrophoneRecorder {
 
   async start(): Promise<StartResult> {
     this.chunks = []
+    this.captured = 0
     this.startedAt = performance.now()
 
     let stream: MediaStream
@@ -60,7 +73,17 @@ export class MicrophoneRecorder {
       const source = this.context.createMediaStreamSource(stream)
       this.node = new AudioWorkletNode(this.context, 'pcm-collector')
       this.node.port.onmessage = (event: MessageEvent<Float32Array | 'done'>) => {
-        if (event.data !== 'done') this.chunks.push(event.data)
+        if (event.data === 'done') return
+        // The hard ceiling, in SAMPLES rather than milliseconds, and the reason both exist.
+        // `MAX_HOLD_MS` is the product rule and it depends on the turn machine still running;
+        // this one depends on nothing. A 48 kHz device fills three times faster than the 16 kHz
+        // the cap was reasoned about, and an effect that stopped scheduling — a wedged window,
+        // a backgrounded tab — stops enforcing time while audio keeps arriving here.
+        //
+        // The TAIL is dropped, not the head: what someone said first is the part they meant.
+        if (this.captured + event.data.length > MAX_SAMPLES) return
+        this.captured += event.data.length
+        this.chunks.push(event.data)
       }
 
       // The meter reads from its own node. It changes ~30 times a second and only the meter

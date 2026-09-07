@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron'
+import { ipcMain, shell, type BrowserWindow } from 'electron'
 
 import {
   AppInfoRes,
@@ -14,6 +14,8 @@ import {
 } from '../../shared/ipc'
 import { failed } from '../domain/model/turn'
 import type { Env, Ports } from './composition-root'
+import { DEADLINES } from './deadlines'
+import { readNotices } from './notices'
 
 /**
  * IPC handlers are adapters, and nothing more: unwrap, validate, call the port, wrap.
@@ -32,7 +34,7 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
     const { pcm, sampleRate, heldMs } = parsed.data
     return ports.transcriber.transcribe(
       { samples: new Float32Array(pcm), sampleRate, heldMs },
-      AbortSignal.timeout(60_000),
+      AbortSignal.timeout(DEADLINES.transcribe),
     )
   })
 
@@ -40,7 +42,7 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
     const parsed = AskReq.safeParse(payload)
     if (!parsed.success) return failed({ kind: 'agent-failed', stderr: 'malformed request' })
 
-    const outcome = await ports.agent.run(parsed.data, AbortSignal.timeout(90_000))
+    const outcome = await ports.agent.run(parsed.data, AbortSignal.timeout(DEADLINES.agent))
     if (outcome.k === 'failed') return outcome
     const { text, notes, model, sessionId, costUsd } = outcome.value
     return { k: 'ok', value: { reply: text, notes: [...notes], model, sessionId, costUsd } }
@@ -50,7 +52,7 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
     const parsed = SpeakReq.safeParse(payload)
     if (!parsed.success) return failed({ kind: 'agent-failed', stderr: 'malformed request' })
 
-    const outcome = await ports.voice.speak(parsed.data.text, AbortSignal.timeout(120_000))
+    const outcome = await ports.voice.speak(parsed.data.text, AbortSignal.timeout(DEADLINES.speak))
     return outcome.k === 'ok' ? { k: 'ok', value: null } : outcome
   })
 
@@ -61,6 +63,7 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
       notesDir: env.notesDir,
       // What the operator configured, valid or not. A turn reports the model that actually ran.
       agentModel: env.agentModelRaw,
+      notices: readNotices(),
     })
   })
 
@@ -74,6 +77,19 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
    */
   ipcMain.handle(CH.notes, async (): Promise<NotesListRes> => {
     return NotesListRes.parse({ files: await ports.notes.list() })
+  })
+
+  /**
+   * The microphone privacy pane, and nothing else.
+   *
+   * The URL is a constant HERE rather than a parameter from the renderer: a bridge method that
+   * took a URL would be `shell.openExternal` with extra steps, and that is the renderer asking
+   * the OS to launch arbitrary things. This asks it to launch exactly one.
+   */
+  ipcMain.handle(CH.openSettings, async (): Promise<void> => {
+    await shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+    )
   })
 }
 

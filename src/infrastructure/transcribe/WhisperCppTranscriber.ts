@@ -83,9 +83,26 @@ export class WhisperCppTranscriber implements Transcriber {
     } catch (error) {
       return failed(this.classify(error))
     } finally {
-      // Runs on every path, including the aborted one: a temp directory per turn otherwise
-      // accumulates a WAV of every sentence the user has ever spoken.
-      await rm(workDir, { recursive: true, force: true })
+      /*
+       * Runs on every path, including the aborted one: a temp directory per turn otherwise
+       * accumulates a WAV of every sentence the user has ever spoken.
+       *
+       * The cleanup CANNOT be allowed to reject, and that is not defensive habit. A `finally`
+       * that throws replaces the value the function had already computed — verified: the
+       * returned `Outcome` is discarded and the caller gets a rejection instead. It would do
+       * that precisely on the failure paths, where the discarded value is the explanation of
+       * what went wrong, and it would break this adapter's one contract: failures come back as
+       * typed data, never as a throw.
+       *
+       * `force: true` already makes "the directory is gone" a no-op, so what is swallowed here
+       * is the genuinely exceptional case — EACCES, EBUSY, a filesystem that refuses. Losing a
+       * temp directory is worth strictly less than losing the reason the turn failed.
+       *
+       * Note this is safe against overlapping and twice-cancelled turns without any locking:
+       * `mkdtemp` hands every call its own directory, so no two turns share the path being
+       * removed, and a second removal of the same path is a no-op.
+       */
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
     }
   }
 

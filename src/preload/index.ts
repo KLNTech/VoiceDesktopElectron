@@ -33,6 +33,8 @@ const bridge: VoiceDeskBridge = {
 
   notes: (): Promise<NotesListRes> => ipcRenderer.invoke(CH.notes),
 
+  openSettings: (): Promise<void> => ipcRenderer.invoke(CH.openSettings),
+
   onTurnState: (listener) => {
     const handler = (_event: unknown, payload: unknown): void => {
       // Main is not implicitly trusted either: the push is parsed on arrival, and a malformed

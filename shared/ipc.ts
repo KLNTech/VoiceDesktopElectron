@@ -14,6 +14,7 @@ export const CH = {
   speak: 'turn:speak',
   appInfo: 'app:info',
   notes: 'notes:list',
+  openSettings: 'os:open-settings',
   state: 'turn:state',
 } as const
 
@@ -92,6 +93,18 @@ export const AskRes = outcomeOf(
 export const SpeakReq = z.object({ text: z.string().min(1).max(4_000) })
 export const SpeakRes = outcomeOf(z.null())
 
+/**
+ * One row of the about sheet's notices table.
+ *
+ * The app bundles open-source components whose licences require their notices to travel with
+ * it, so this is a legal surface rather than a nicety (`docs/design/DESIGN-BRIEF.md` §7).
+ */
+export const NoticeSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  licence: z.string(),
+})
+
 export const AppInfoRes = z.object({
   version: z.string(),
   stage: z.enum(['dev', 'build']),
@@ -104,6 +117,13 @@ export const AppInfoRes = z.object({
    * the enum would force the app to display a tier it is not going to run.
    */
   agentModel: z.string(),
+  /**
+   * Built in main from what is ACTUALLY running — `process.versions` for the runtime, the
+   * lockfile's resolved versions for the packages — never typed into the UI. A hard-coded
+   * version table is a legal notice that goes stale silently, which is the one kind of
+   * inaccuracy this surface cannot afford.
+   */
+  notices: z.array(NoticeSchema),
 })
 
 export const TurnStatePush = z.discriminatedUnion('k', [
@@ -124,6 +144,7 @@ export type SpeakRes = z.infer<typeof SpeakRes>
 export type AppInfoRes = z.infer<typeof AppInfoRes>
 export type NoteFileSchema = z.infer<typeof NoteFileSchema>
 export type NotesListRes = z.infer<typeof NotesListRes>
+export type NoticeSchema = z.infer<typeof NoticeSchema>
 export type TurnStatePush = z.infer<typeof TurnStatePush>
 
 /**
@@ -138,6 +159,14 @@ export interface VoiceDeskBridge {
   appInfo(): Promise<AppInfoRes>
   /** The notes folder as it stands right now, so the panel has rows before any turn runs. */
   notes(): Promise<NotesListRes>
+  /**
+   * Opens macOS's microphone privacy pane — the action the design gives the mic-denied board.
+   *
+   * It takes NO argument, deliberately. A `openExternal(url)` on the bridge would hand the
+   * renderer the ability to launch anything the OS can handle, which is a far larger capability
+   * than "show the user where the switch is". Main owns the one URL.
+   */
+  openSettings(): Promise<void>
   /** Returns its own unsubscribe — a remounting component that cannot detach leaks a listener. */
   onTurnState(listener: (state: TurnStatePush) => void): () => void
 }

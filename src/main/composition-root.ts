@@ -14,6 +14,7 @@ import { MarkdownNotesFolder } from '../infrastructure/notes/MarkdownNotesFolder
 import { MacSaySynthesizer } from '../infrastructure/speak/MacSaySynthesizer'
 import { WhisperCppTranscriber } from '../infrastructure/transcribe/WhisperCppTranscriber'
 import { resolveBinary } from '../infrastructure/process/resolveBinary'
+import { DEADLINES } from './deadlines'
 
 export interface Env {
   readonly version: string
@@ -86,9 +87,12 @@ export function buildPorts(env: Env): Ports {
   const model = env.agentModel
 
   return {
-    transcriber: new WhisperCppTranscriber(env.whisperBin, env.whisperModel),
+    // Each adapter is given the SAME deadline its caller will build a signal from. Passed
+    // explicitly rather than left to the constructor default, so the two cannot drift apart
+    // and start reporting a number that never applied (`deadlines.ts`).
+    transcriber: new WhisperCppTranscriber(env.whisperBin, env.whisperModel, DEADLINES.transcribe),
     notes,
-    voice: new MacSaySynthesizer(env.sayBin),
+    voice: new MacSaySynthesizer(env.sayBin, DEADLINES.speak),
 
     // A misconfigured tier is refused here rather than inside the adapter, so the adapter can
     // take an `AgentModel` and never a string that might not be one.
@@ -100,6 +104,7 @@ export function buildPorts(env: Env): Ports {
             notes,
             env.notesDir,
             makeLoginCheck(env.skipLoginCheck),
+            DEADLINES.agent,
           )
         : { run: async () => failed<AgentReply>(model.failure) },
   }
