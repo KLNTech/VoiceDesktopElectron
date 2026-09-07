@@ -42,6 +42,7 @@ const env: Env = {
   whisperBin: null,
   whisperModel: '/tmp/model.bin',
   sayBin: null,
+  sayVoice: undefined,
 }
 
 /** Records whether a port was reached at all — the thing a missing guard would let happen. */

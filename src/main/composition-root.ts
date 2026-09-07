@@ -29,6 +29,8 @@ export interface Env {
   readonly whisperBin: string | null
   readonly whisperModel: string
   readonly sayBin: string | null
+  /** An operator naming the voice `say` reads in; unset means "pick an English one". */
+  readonly sayVoice: string | undefined
 }
 
 /** Every knob in one place, each with a working default (`README.md` → Configuration). */
@@ -46,6 +48,7 @@ export function readEnv(isDev: boolean, version: string): Env {
     whisperBin: resolveBinary('whisper-cli', env['VOICEDESK_WHISPER_BIN']),
     whisperModel: env['VOICEDESK_WHISPER_MODEL'] ?? join(homedir(), '.whisper/ggml-base.en.bin'),
     sayBin: resolveBinary('say', env['VOICEDESK_SAY_BIN']),
+    sayVoice: env['VOICEDESK_SAY_VOICE'],
   }
 }
 
@@ -92,7 +95,7 @@ export function buildPorts(env: Env): Ports {
     // and start reporting a number that never applied (`deadlines.ts`).
     transcriber: new WhisperCppTranscriber(env.whisperBin, env.whisperModel, DEADLINES.transcribe),
     notes,
-    voice: new MacSaySynthesizer(env.sayBin, DEADLINES.speak),
+    voice: new MacSaySynthesizer(env.sayBin, DEADLINES.speak, env.sayVoice),
 
     // A misconfigured tier is refused here rather than inside the adapter, so the adapter can
     // take an `AgentModel` and never a string that might not be one.
