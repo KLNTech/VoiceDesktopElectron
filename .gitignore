@@ -21,8 +21,13 @@ CLAUDE.md
 
 # ── the notes the app writes ──────────────────────────────────────────────────
 # The agent reads and writes here at runtime. It is user data, not source.
-notes/
-!notes/.gitkeep
+#
+# ANCHORED with a leading slash, and that is not cosmetic: an unanchored `notes/` matches a
+# directory of that name at ANY depth, so it silently swallowed `src/infrastructure/notes/` —
+# the adapter for this very folder. Everything still built here, because the file exists here;
+# a clone had no such file and did not compile. `npm run verify:clone` is what found it.
+/notes/
+!/notes/.gitkeep
 
 # ── editor / OS ───────────────────────────────────────────────────────────────
 .DS_Store

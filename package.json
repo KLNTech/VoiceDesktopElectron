@@ -2,7 +2,7 @@
   "name": "voicedeskelectron",
   "version": "0.2.0",
   "private": true,
-  "description": "VoiceDeskElectron \u2014 a macOS desktop assistant you talk to: hold a button, speak, release.",
+  "description": "VoiceDeskElectron — a macOS desktop assistant you talk to: hold a button, speak, release.",
   "author": "QuaqKLNTech",
   "license": "UNLICENSED",
   "main": "./out/main/index.js",
@@ -13,12 +13,13 @@
     "postinstall": "node scripts/postinstall.mjs",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "docs:pdf": "scripts/docs-pdf.sh docs/voicedesk-architecture.pdf 'VoiceDesk \u2014 architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
+    "docs:pdf": "scripts/docs-pdf.sh docs/voicedesk-architecture.pdf 'VoiceDesk — architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
-    "test": "electron-vite build && vitest run"
+    "test": "electron-vite build && vitest run",
+    "verify:clone": "node scripts/verify-clone.mjs"
   },
   "dependencies": {
     "zod": "4.5.4"
