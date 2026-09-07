@@ -28,6 +28,96 @@ Development machine: macOS 26.6.2 (Apple Silicon), Node 26.8.1, npm 11.19.0.
 
 ---
 
+## What this application is
+
+A window with a button. You hold the button, say a sentence, and let go. What you said appears as
+text, an agent acts on it, and the agent's answer appears underneath — while the file it wrote
+shows up in the list on the left. That is the whole product, and everything below is how it is
+made to happen.
+
+Two things about it are unusual enough to state plainly, because they are what the design is for.
+
+**Your voice never leaves the machine.** Transcription runs locally, through `whisper.cpp` on
+your CPU. There is no API key for it, no account, no upload, and no network call — pull the
+Ethernet cable and the transcription half still works. The recording exists as a temporary WAV
+in a per-turn temp directory that is deleted on every exit path, including the failing ones.
+
+**There is no model API key either.** The agent half does not call a model; it runs the **Claude
+Code CLI** as a subprocess — the same `claude` you use in a terminal — and that CLI authenticates
+with its own macOS Keychain login. This app checks that the keychain entry exists and never reads
+it. So the credential belongs to Claude Code, not to VoiceDesk, and there is nothing here to leak.
+
+### One turn, from press to answer
+
+A single hold runs through six steps. Each is a real component, and each can fail in a way that
+gets its own message rather than a generic one.
+
+| # | what happens | where it lives |
+|---|---|---|
+| 1 | **You press and hold.** The microphone is acquired *now*, not at startup — asking before you have pressed anything reads as spyware and burns the one prompt macOS gives. A meter follows your voice, so you can see that it is listening. | `src/renderer/src/audio/recorder.ts` |
+| 2 | **You let go.** The audio worklet is asked to flush its tail, the microphone is released, and the raw mono samples cross to the main process. Under 250 ms is treated as a slip, not a turn; over 120 s the hold is ended for you. | `recorder.ts`, `src/domain/model/turn.ts` |
+| 3 | **The words come back.** `whisper-cli` runs on the clip with the English model, and the transcript is parsed out of its JSON — parsed, not cast, because it is another program's format. | `src/infrastructure/transcribe/WhisperCppTranscriber.ts` |
+| 4 | **Your words go on screen immediately**, before the agent is asked anything. Showing someone their own words is a separate promise from answering them, and the agent step is the long one. | `src/renderer/src/useTurn.ts` |
+| 5 | **The agent answers.** `claude -p` is spawned with the transcript, confined to the `notes/` folder, and it creates or edits Markdown there. Its reply, the files it touched, the model it actually ran and what the call cost come back in one JSON envelope. | `src/infrastructure/agent/ClaudeCliAgentRunner.ts` |
+| 6 | **Optionally, the answer is read aloud** through the macOS `say` binary, in an English voice chosen deliberately rather than inherited from the system language. | `src/infrastructure/speak/MacSaySynthesizer.ts` |
+
+Every step out of the process — Whisper, the agent, `say` — is treated the way a network call
+is: an argv array and never a shell, a deadline that kills, and failures split into *"your
+machine needs something installed"* and *"the run failed"*, because collapsing those two sends
+you to debug the wrong thing.
+
+### What you see
+
+The window is 800 × 720 and has two panels.
+
+- **On the left, `notes/`** — every Markdown file in the folder, each marked with what the last
+  turn did to it: `EDITED`, `READING`, or nothing. It is a readout, so you can watch the agent
+  work rather than take its word for it.
+- **On the right, the conversation** — your turns and the agent's replies, timestamped, with the
+  files each turn changed listed under it.
+- **Along the top**, the version, the stage, and the model the CLI **actually ran** — read out of
+  the reply envelope rather than out of a setting, so it is something you can check rather than
+  something this README asserts. **About** opens the third-party notices, built from
+  `process.versions` and the installed packages' own manifests.
+- **When something breaks**, a panel that names the failure, gives you the one action that fixes
+  it — open System Settings, copy an install command, retry — and a code you can quote.
+
+### How it is built
+
+Four layers, and the dependency arrows only point inward.
+
+```
+src/domain/          policy: the turn machine, the models, the ports. Plain TypeScript.
+                     Imports NOTHING platform-shaped — no Electron, no Node, not even `process`.
+src/infrastructure/  the adapters that implement those ports: whisper, the agent CLI, `say`,
+                     the notes folder. All the I/O lives here.
+src/main/            the backend: the composition root, the IPC handlers, the window.
+src/renderer/        the page: React, and nothing that can reach the operating system.
+shared/              the wire contract — the channel names and the payload schemas, imported by
+                     main, preload and renderer alike, so a change is a compile error everywhere.
+```
+
+That rule is not a paragraph anybody has to remember: `test/architecture.test.ts` reads every
+file under `src/domain/` and reddens on a static import, a side-effect import, a dynamic import,
+a `require`, or the `process` global — and it also checks the other direction, that nothing in
+the renderer reaches an adapter.
+
+Electron's three processes are used as the privilege boundary they are. The renderer runs with
+`contextIsolation: true`, `sandbox: true` and `nodeIntegration: false`, under a
+Content-Security-Policy with no `unsafe-eval`, and it can reach exactly seven named bridge methods
+and nothing else — never `ipcRenderer`. Main validates every payload that arrives from
+it, because a page is the least-trusted thing in a desktop app. Those two properties are held by
+tests that launch a real Electron, not by review.
+
+### Where your data is
+
+- `notes/` beside the app — plain Markdown, yours, readable by anything. Set `VOICEDESK_NOTES_DIR`
+  to put it elsewhere.
+- Nothing else. No database, no cache of your audio, no telemetry, no analytics, no crash
+  reporter, and no network destination other than the ones Claude Code opens for itself.
+
+---
+
 ## Requirements
 
 | | version | why |
@@ -195,7 +285,7 @@ ships in this build and there is no language switcher.
 - Setup problems name the missing thing and the command that fixes it, and are kept distinct
   from a failed turn: a missing binary, a Whisper model that is not there, and *"nobody ever
   signed in on this machine"* each get their own message.
-- The suite spans **22 test files**, and `npm test` runs the typecheck and the linter before any
+- The suite spans **23 test files**, and `npm test` runs the typecheck and the linter before any
   of them, because it previously ran neither and a real type error went green. The file count is
   checked by `test/readme-licences.test.ts` rather than typed here and left to rot; the number of
   individual assertions is deliberately not quoted, because it changes on almost every commit and
