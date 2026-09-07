@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { globSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
@@ -56,6 +56,21 @@ describe('the README tells the truth about its dependencies', () => {
     // coincidence cannot make this pass.
     const row = new RegExp(`\\|[^|\\n]*${escape(label)}[^|\\n]*\\|\\s*${escape(version)}\\s*\\|`)
     expect(readme).toMatch(row)
+  })
+
+  /**
+   * The one number the README quotes about itself.
+   *
+   * It said *"192 automated checks across 27 files"*, and by the time anyone read it the suite
+   * was 180 across 22 — the count had been correct on the day it was typed and wrong from the
+   * next commit onward, which is the exact failure the licence rows above already have a machine
+   * for. The assertion count is deliberately NOT quoted in the README: it moves on almost every
+   * commit, and a number nothing can hold still does not belong in a document.
+   */
+  it('quotes a test-file count that matches the files on disk', () => {
+    const files = globSync('test/**/*.test.ts').length
+    expect(files).toBeGreaterThan(0)
+    expect(readme).toMatch(new RegExp(`\\*\\*${files} test files\\*\\*`))
   })
 
   it('names the agent CLI version the flag set was verified against', () => {

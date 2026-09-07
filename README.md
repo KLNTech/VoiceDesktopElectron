@@ -195,8 +195,11 @@ ships in this build and there is no language switcher.
 - Setup problems name the missing thing and the command that fixes it, and are kept distinct
   from a failed turn: a missing binary, a Whisper model that is not there, and *"nobody ever
   signed in on this machine"* each get their own message.
-- 192 automated checks across 27 files. `npm test` runs the typecheck and the linter first,
-  because it previously ran neither and a real type error went green.
+- The suite spans **22 test files**, and `npm test` runs the typecheck and the linter before any
+  of them, because it previously ran neither and a real type error went green. The file count is
+  checked by `test/readme-licences.test.ts` rather than typed here and left to rot; the number of
+  individual assertions is deliberately not quoted, because it changes on almost every commit and
+  a stale number in a README is the defect this project keeps writing gates against.
 
 **Needs a human, and so has no automated gate:** granting the microphone permission, and every
 question of appearance. Nothing in the suite looks at the window.
@@ -301,6 +304,62 @@ Named here so nobody goes looking: there is **no packaged `.app` or `.dmg`, no c
 or notarisation, and no CI/CD pipeline**. The delivery is the development build described
 above. The full list, with the reason for each, is the future-work table at the end of
 [`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md).
+
+### Wanted next, and not started
+
+Recorded so each absence is a decision rather than an oversight. None of it is promised, and
+nothing above claims any of it. The reason for each, and what it would take, is the same table:
+[`docs/WORK-BREAKDOWN.md`](docs/WORK-BREAKDOWN.md) → *Future work*.
+
+**The install is longer than it should be**
+
+- **F10 — ship Whisper inside the app**, so a new user installs one thing instead of four. Today
+  step 3 of the install is `brew install whisper-cpp` plus a 141 MB model download, and both are
+  ways for a first run to fail before the app has done anything. Measured on the development
+  machine, the engine itself is small — `whisper-cli` is 643 KB and its libraries about 1.1 MB —
+  and effectively the whole cost is the `base.en` model at **141 MB**. The download is the size,
+  so the size is a model choice, not an engine one.
+- **F18 — the microphone permission is granted to "Electron", not to VoiceDesk.** In System
+  Settings → Privacy & Security → Microphone the entry carries Electron's name and icon, because
+  an unpackaged development build *is* Electron: it has no bundle identifier of its own. The user
+  cannot tell which app they are granting, and every Electron app on the machine shares the one
+  switch. This is fixed by F1 and F2 and by nothing short of them.
+- **F19 — a missing microphone permission can end up on the wrong board.** Reported from use:
+  instead of the microphone board, a *"Setup is incomplete"* dialog appears carrying a filesystem
+  path. That board is the `setup` failure, and its body is the failing adapter's hint shown
+  verbatim — two of those hints quote an absolute path (`No Whisper model at …`, and the one that
+  names `VOICEDESK_WHISPER_BIN`). Two things are wrong and both are worth fixing: **a permission
+  problem must never be routed through the setup board**, which is about things that are not
+  installed, and **an absolute path does not belong in the middle of a sentence** shown to
+  someone who is not the developer. Not reproduced here — this repository's machine has the
+  permission granted, so the branch cannot be entered without revoking it — which is itself part
+  of the reason it survived: the mic path is the one the *"Needs a human"* note above says has no
+  automated gate.
+
+**The notes panel is a list you can only read**
+
+- **F11 — choose where the Markdown files live**, from the app rather than from
+  `VOICEDESK_NOTES_DIR`.
+- **F12 — make the list on the left work**: a row you can click to open, and a row you can
+  delete.
+- **F13 — one conversation per note.** Today there is a single agent session for the whole app;
+  the useful shape is a dialogue attached to the note it is about, and a dialogue that can itself
+  be deleted.
+- **F14 — the agent may delete a Markdown file**, not only create and edit one.
+- **F15 — rename a note**, so a name typed in the first sentence is not permanent.
+
+**Signing in, and starting over**
+
+- **F16 — sign in as any account**, rather than inheriting whichever one Claude Code is logged
+  into on this machine, and with it a way to **clear the conversation context** on purpose.
+
+**Checks that run somewhere other than a developer's laptop**
+
+- **F3 — CI on GitHub Actions**, which is what the rest of the tooling around this project
+  already speaks.
+- **F17 — a UI happy-path gate that runs AFTER the merge**, not in front of it. The domain
+  pipeline stays the thing that blocks a merge; this one drives the window through one whole turn
+  and reports, which is exactly the coverage the Playwright cut gave up (see the cut table above).
 
 ---
 
