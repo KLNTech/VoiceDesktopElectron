@@ -87,7 +87,9 @@ describe('ending a hold', () => {
     await recorderWithPort(port).stop()
 
     expect(collected).toHaveLength(1)
-    expect(Array.from(collected[0] as Float32Array)).toEqual([0.5, 0.5])
+    const tail = collected[0]
+    if (!(tail instanceof Float32Array)) throw new Error(`the tail was not samples: ${String(tail)}`)
+    expect(Array.from(tail)).toEqual([0.5, 0.5])
   })
 
   it('returns everything captured before the flush', async () => {
@@ -158,9 +160,9 @@ describe('joining the captured chunks', () => {
   })
 })
 
-describe('telling the user which microphone problem they have', () => {
-  const domException = (name: string): DOMException => new DOMException('denied', name)
+const domException = (name: string): DOMException => new DOMException('denied', name)
 
+describe('telling the user which microphone problem they have', () => {
   it.each([['NotFoundError'], ['DevicesNotFoundError'], ['OverconstrainedError']])(
     'reads %s as "there is no device"',
     async (name) => {
@@ -180,10 +182,12 @@ describe('telling the user which microphone problem they have', () => {
   })
 })
 
+/** The only bridge method `denialKind` reaches for. */
+const withBridge = (micAccess: () => Promise<string>): void => {
+  Reflect.set(window, 'voicedesk', { micAccess })
+}
+
 describe('which denial it is', () => {
-  const withBridge = (micAccess: () => Promise<string>): void => {
-    Reflect.set(window, 'voicedesk', { micAccess })
-  }
   afterEach(() => Reflect.deleteProperty(window, 'voicedesk'))
 
   it('sends the user to System Settings when macOS says denied', async () => {
