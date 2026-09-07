@@ -28,6 +28,11 @@ const Probe = z.object({
   ipcRendererLeaked: z.boolean(),
   nodeLeaked: z.boolean(),
   preloadErrors: z.array(z.string()),
+  /** `true` when the reply came back from the real main process, over the real channel. */
+  roundTrip: z.boolean().nullable(),
+  roundTripError: z.string().nullable(),
+  /** `false` when the policy let the app's own code run; a string is the error it raised. */
+  cspBlocksApp: z.union([z.boolean(), z.string()]).nullable(),
 })
 type Probe = z.infer<typeof Probe>
 
@@ -53,7 +58,7 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
 
   it('exposes exactly one named method per declared channel, and nothing else', () => {
     expect(seen.methods).toEqual(
-      ['transcribe', 'ask', 'speak', 'appInfo', 'onTurnState'].toSorted(),
+      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'openSettings', 'onTurnState'].toSorted(),
     )
     // The bridge must stay enumerable: one method per message, no more.
     expect(seen.methods).toHaveLength(Object.keys(CH).length)
@@ -62,5 +67,31 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
   it('leaks neither ipcRenderer nor Node into the page', () => {
     expect(seen.ipcRendererLeaked).toBe(false)
     expect(seen.nodeLeaked).toBe(false)
+  })
+
+  /**
+   * S10's acceptance criterion: *"something in this project executes in the renderer, so a CSP
+   * or preload-wiring defect has a gate in front of it."*
+   *
+   * The round trip is the half a unit test cannot reach. Renderer → preload → `ipcMain.handle`
+   * → back, over a real channel, in a real sandboxed page: every layer of the wiring at once,
+   * and the only test in the suite that fails if any of them is disconnected.
+   */
+  it('completes a round trip across the real IPC seam', () => {
+    expect(seen.roundTripError).toBeNull()
+    expect(seen.roundTrip).toBe(true)
+  })
+
+  /**
+   * The production Content-Security-Policy is installed in the probe, because a policy is a
+   * HEADER and therefore does not exist unless something serves it.
+   *
+   * The defect this is in front of has happened here: zod JIT-compiles object validators with
+   * `new Function`, the policy has no `'unsafe-eval'`, and the preload parses inbound pushes
+   * with one. Under Node — where `vitest` runs and eval is allowed — every test stayed green
+   * while every IPC reply failed to parse inside the window.
+   */
+  it('runs the app\'s own code under the real policy, with no eval refused', () => {
+    expect(seen.cspBlocksApp).toBe(false)
   })
 })

@@ -1,226 +1,774 @@
 /*
- * S1 carries only what a window needs to look deliberate while it is still a shell. The design
- * system (Industry_indust tokens, `state-roles.css`) arrives with the interface in S8.
+ * The window, implemented against the canvas `Voice Desktop.dc.html` at design `0.3.1`.
+ *
+ * Structure comes from the fifteen artboards: 800 × 720, two panes — `notes/` on the left as
+ * standing evidence of what the agent wrote, the turn on the right. Values come from
+ * `design/tokens.css`, which is the bound system copied verbatim; nothing here invents a colour,
+ * a step or a radius (`docs/design/DESIGN-BRIEF.md` §11).
  */
-:root {
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
-  --bg: #f5f3ef;
-  --surface: #fffdfa;
-  --line: #e0d9cf;
-  --ink: #1c1a17;
-  --ink-soft: #6d665c;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141210;
-    --surface: #1d1a17;
-    --line: #332d26;
-    --ink: #ece7df;
-    --ink-soft: #9d9489;
-  }
-}
+/* Bundled, never fetched. The CSP is `font-src 'self'` and the brief forbids a network font;
+   the canvas is explicit that an Electron app ships its own type rather than borrowing the
+   system stack, which is also why Barlow appears in the about sheet's notices. */
+@import '@fontsource/barlow/latin-400.css';
+@import '@fontsource/barlow/latin-500.css';
+@import '@fontsource/barlow/latin-700.css';
+@import '@fontsource/barlow-condensed/latin-600.css';
+@import './design/tokens.css';
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--ink);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  /* A desktop window, not a document: nothing here is selectable prose except the turn text
+     and the error detail, which opt back in below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  overflow: hidden;
 }
 
-.bar {
+/* ── title bar ───────────────────────────────────────────────────────────────
+   Two read-only readouts and no controls (§3). The traffic lights are the real ones, from
+   `titleBarStyle: 'hiddenInset'`, so the padding leaves room for them rather than drawing
+   circles the way the artboards must. */
+.titlebar {
+  flex: 0 0 auto;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 14px 20px;
-  /* Leaves room for the traffic lights under `titleBarStyle: 'hiddenInset'`. */
-  padding-top: 28px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px 9px 78px;
+  border-bottom: 1px solid var(--color-divider);
+  background: var(--color-surface);
   -webkit-app-region: drag;
 }
 
-.bar h1 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.titlebar-name {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 16px;
+  letter-spacing: 0.01em;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 11px;
+  border-left: 1px solid var(--color-divider);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+.readout svg {
+  opacity: 0.6;
+}
+.readout-label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.readout-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text);
+}
+
+/* The state pill: LISTENING / WORKING. Absent at rest, which is why idle has no pill at all. */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--state-ink-on-fill);
+  background: var(--role);
+}
+.state-pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+/* The brief forbids animation that delays interaction; a reduced-motion setting removes the
+   only one there is, and the pill still reads because its text and fill carry the state. */
+@media (prefers-reduced-motion: reduce) {
+  .state-pill::before {
+    animation: none;
+  }
 }
 
 .version {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.72rem;
-  color: var(--ink-soft);
-}
-
-.note {
-  margin: 0;
-  padding: 20px;
-  max-width: 52ch;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--ink-soft);
-}
-
-/* ── the turn area ────────────────────────────────────────────────────────── */
-.state {
   margin-left: auto;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  -webkit-app-region: no-drag;
-}
-.state-recording {
-  color: #a82a1f;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.turns {
+/* ── the two panes ───────────────────────────────────────────────────────── */
+.panes {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px;
+  display: grid;
+  /* The left pane is standing evidence and the right is the turn; the turn is the larger. */
+  grid-template-columns: 246px 1fr;
+  min-height: 0;
+}
+
+.notes-pane {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  min-height: 0;
+  border-right: 1px solid var(--color-divider);
+  background: var(--color-surface);
 }
 
-.empty {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.9rem;
-}
-
-.turn {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 10px;
+.pane-head {
+  display: flex;
   align-items: baseline;
+  gap: 8px;
+  padding: 11px 13px 8px;
 }
-.turn .who {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.turn p {
+.pane-head h2 {
   margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.pane-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.failure {
-  border: 1px solid var(--line);
-  border-left: 3px solid #a82a1f;
-  background: var(--surface);
-  padding: 14px 16px;
-  border-radius: 4px;
+.note-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 7px;
+  list-style: none;
 }
-/* The three categories of the design's error registry get three different edges, not just
-   different words, so "install something" / "grant something" / "this turn failed" survive a
-   glance. Colour is never the only cue — each carries its own title and action. */
-.failure.cat-setup {
-  border-left-color: #a3560b;
+
+.note-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
 }
-.failure.cat-permission {
-  border-left-color: #1c6444;
+.note-row + .note-row {
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
 }
-.failure.cat-failure {
-  border-left-color: #a82a1f;
-}
-.failure strong {
-  display: block;
-  font-size: 0.92rem;
-  margin-bottom: 4px;
-}
-.failure p {
-  margin: 0 0 10px;
-  font-size: 0.86rem;
-  line-height: 1.5;
-  color: var(--ink-soft);
+.note-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
-.failure button {
-  font: inherit;
-  font-size: 0.78rem;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+.note-meta {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+/*
+ * The marker is a word, never only a colour. `EDITED` and `READING` are the two things the
+ * agent did; `UNCHANGED` is the majority and is deliberately quiet — it is a label the eye can
+ * skip, because a panel that shouts about every row says nothing about the one that changed.
+ */
+.note-mark {
+  align-self: center;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 1px 6px;
+}
+.note-mark.is-edited {
+  background: var(--color-accent);
+  color: var(--state-ink-on-fill);
+}
+.note-mark.is-read {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+}
+.note-mark.is-unchanged {
+  color: color-mix(in srgb, var(--color-text) 38%, transparent);
+}
+
+.pane-empty {
+  margin: 0;
+  padding: 6px 13px;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+
+/* "The agent writes these files. VoiceDesk never edits them itself." — on every artboard,
+   because the app must never present itself as the author (§9). */
+.pane-foot {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 9px 13px;
+  border-top: 1px solid var(--color-divider);
+  font-size: 10px;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--color-text) 52%, transparent);
+}
+
+/* ── the turn ────────────────────────────────────────────────────────────── */
+.turn-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.turn-head {
+  padding: 11px 17px 6px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.turn-log {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 17px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.turn-entry {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 3px 10px;
+}
+.turn-who {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.turn-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--color-text) 42%, transparent);
+}
+.turn-text {
+  grid-column: 2;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  /* The one place the user may want to copy what was said. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* "Agent edited · notes/shopping.md" — the reply's own receipt, echoing the left pane. */
+.turn-edits {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.turn-edit-file {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 1px 6px;
+  border: 1px solid var(--color-divider);
+  color: var(--color-text);
+}
+
+.turn-empty {
+  margin: 0;
+  padding: 4px 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.turn-empty strong {
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+}
+
+/* The long wait, made bounded rather than hung: elapsed against the deadline (§9). */
+.progress {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.progress-meta {
+  display: flex;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+.progress-track {
+  height: 3px;
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+.progress-fill {
+  height: 100%;
+  background: var(--state-thinking);
+  width: calc(var(--progress, 0) * 100%);
+  transition: width 0.4s linear;
+}
+
+/* ── failures ────────────────────────────────────────────────────────────────
+   One layout, four contents. The band across the top is the whole point of the screen: a
+   FILLED band is your machine and is fixed once; a HAIRLINE band is this turn and is retried.
+   Nobody should have to read the body to know which of the two they are looking at. */
+.failure {
+  border: 1px solid var(--color-divider);
+  background: var(--color-bg);
+}
+.failure-band {
+  padding: 5px 13px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.failure.is-yours .failure-band {
+  background: var(--state-error);
+  color: var(--state-ink-on-fill);
+}
+.failure.is-turn .failure-band {
+  border-bottom: 1px solid var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+
+.failure-body {
+  display: flex;
+  gap: 11px;
+  padding: 13px;
+}
+.failure-icon {
+  flex: 0 0 auto;
+  color: var(--state-error);
+}
+.failure h3 {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 19px;
+  line-height: 1.15;
+}
+.failure p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
+  overflow-wrap: anywhere;
+}
+/* The agent's own error text, in a monospace block — it is someone else's output, quoted. */
+.failure pre {
+  margin: 0;
+  padding: 8px 9px;
+  max-height: 96px;
+  overflow: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.failure-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px 12px 61px;
+}
+.failure-code {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+/* ── buttons, from the system ────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
   background: transparent;
-  color: var(--ink);
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-600);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+.btn-ghost {
+  border-color: transparent;
+  color: var(--color-accent);
+  padding-inline: var(--space-1);
+  font-size: 12px;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
-/* ── the talk control ─────────────────────────────────────────────────────── */
-.foot {
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-  padding: 16px 20px 20px;
-}
-
-.notice {
-  margin: 0 0 10px;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
+/* ── the talk control ────────────────────────────────────────────────────────
+   The largest thing in the right pane; everything else defers to it (§4). It has to say three
+   things without a label: that it is HELD not clicked, that the microphone is live right now,
+   and how loud the user is. */
+.talk {
+  flex: 0 0 auto;
+  padding: 13px 17px 17px;
+  border-top: 1px solid var(--color-divider);
+  background: var(--color-surface);
 }
 
 .talk-button {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   width: 100%;
-  padding: 16px;
-  border: 1px solid var(--ink);
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--bg);
+  padding: 15px;
+  border: 1px solid var(--color-text);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   cursor: pointer;
   /* No transition on the pressed state: the control must read as held the instant it is. */
-  user-select: none;
+  touch-action: none;
 }
 .talk-button:disabled {
-  opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
+  opacity: 0.45;
+  border-style: dashed;
 }
+.talk-label {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.talk-hint {
+  font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+.talk-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-divider);
+}
+
+/* Held: the one solid object on the board, and still the loudest thing (artboard 03/14). */
 .talk-button.is-recording {
-  background: #a82a1f;
-  border-color: #a82a1f;
-  color: #fff;
+  background: var(--state-listening);
+  border-color: var(--state-listening);
+  color: var(--state-ink-on-fill);
   transform: translateY(1px);
 }
+.talk-button.is-recording .talk-hint {
+  color: color-mix(in srgb, var(--state-ink-on-fill) 80%, transparent);
+}
+.talk-button.is-recording .talk-hint kbd {
+  border-color: color-mix(in srgb, var(--state-ink-on-fill) 45%, transparent);
+}
 
-.meter {
+.talk-timer {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ── the level meter ─────────────────────────────────────────────────────────
+   Part of the button, not a widget beside it, and never the ONLY cue that recording is live:
+   the label and the pressed state carry it too, so the state survives colour blindness and a
+   screen reader (§4, §9). */
+.meter-row {
   display: flex;
-  gap: 3px;
-  justify-content: center;
-  align-items: flex-end;
-  height: 26px;
-  margin: 10px 0 6px;
+  align-items: center;
+  gap: 9px;
+  margin-top: 9px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
 }
+.meter {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 18px;
+}
+/*
+ * The bar SHAPE lives here, not in the component: seven fixed weights describing a symmetric
+ * hump are presentation. The component publishes one number — `--level`, 0..1 — so an
+ * animation frame writes a single custom property instead of seven inline style objects.
+ */
 .meter i {
-  width: 4px;
-  border-radius: 1px;
-  background: #a3560b;
+  flex: 1;
+  min-width: 3px;
   display: block;
+  background: var(--state-idle);
+  height: calc(2px + var(--level, 0) * var(--weight) * 16px);
+}
+.meter.is-live i {
+  background: var(--state-listening);
+}
+.meter i:nth-child(1),
+.meter i:nth-child(9) {
+  --weight: 0.3;
+}
+.meter i:nth-child(2),
+.meter i:nth-child(8) {
+  --weight: 0.5;
+}
+.meter i:nth-child(3),
+.meter i:nth-child(7) {
+  --weight: 0.72;
+}
+.meter i:nth-child(4),
+.meter i:nth-child(6) {
+  --weight: 0.9;
+}
+.meter i:nth-child(5) {
+  --weight: 1;
+}
+.meter-value {
+  font-family: var(--font-mono);
+  min-width: 44px;
+  text-align: right;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
-.hint {
+/* ── first run ───────────────────────────────────────────────────────────── */
+.firstrun {
+  padding: 4px 0 0;
+  max-width: 48ch;
+}
+.firstrun h3 {
+  margin: 0 0 3px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 19px;
+}
+.firstrun > p {
+  margin: 0 0 var(--space-4);
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
+}
+.firstrun-step {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 3px 9px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-divider);
+}
+.firstrun-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent);
+}
+.firstrun-title {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 14px;
+}
+.firstrun-step p {
+  grid-column: 2;
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+.firstrun-step .btn {
+  grid-column: 2;
+  justify-self: start;
+}
+.firstrun-path {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ── about sheet ─────────────────────────────────────────────────────────────
+   A sheet over the main window, never a second window (§7). */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  z-index: 10;
+}
+.sheet {
+  width: min(560px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  box-shadow: var(--shadow-lg);
+}
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 15px 17px 10px;
+}
+.sheet-head h2 {
   margin: 0;
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--ink-soft);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 22px;
+}
+.sheet-head .version {
+  margin-left: auto;
+}
+.sheet-body {
+  padding: 0 17px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.sheet-body p {
+  margin: 0 0 var(--space-4);
+  color: color-mix(in srgb, var(--color-text) 72%, transparent);
+  line-height: 1.5;
+}
+.sheet h3 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+.notices {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.notices th {
+  text-align: left;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+}
+.notices td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.notices td:nth-child(2),
+.notices td:nth-child(3) {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 17px;
+  border-top: 1px solid var(--color-divider);
+}
+.sheet-foot .btn:last-child {
+  margin-left: auto;
 }

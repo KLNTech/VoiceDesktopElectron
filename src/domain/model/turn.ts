@@ -8,6 +8,26 @@
 export const MIN_HOLD_MS = 250
 
 /**
+ * A hold longer than this is ended for the user, and the turn proceeds with what was said.
+ *
+ * Without a ceiling the recording is bounded only by whatever stops the hold — and nothing has
+ * to. A key that repeats into a wedged window, a pointer capture that never sees its release, a
+ * user who walks away: each accumulates Float32 for as long as it lasts, at 64 KB per second at
+ * 16 kHz and three times that from a 48 kHz device.
+ *
+ * The size check that existed was in the IPC schema, which is far too late twice over. It runs
+ * AFTER the whole buffer has been concatenated into one allocation, so the memory has already
+ * been spent by the time it is refused; and it answers with a rejected payload, so a long hold
+ * ends by throwing away everything the user said rather than by transcribing the first two
+ * minutes of it. Ending the hold is the better failure: it is the same thing the user would
+ * have done, done on time.
+ *
+ * Two minutes because that is what 8 MB is at 16 kHz — the bound the wire already declared —
+ * and because no spoken instruction to a note-taking agent is longer.
+ */
+export const MAX_HOLD_MS = 120_000
+
+/**
  * Why a tagged union and not four booleans: `isRecording && !isTranscribing` invites a state
  * that must not exist. This makes "recording while thinking" unrepresentable, and gives the UI
  * one value to render rather than a combination to interpret.
@@ -79,6 +99,8 @@ export function failed<T>(failure: TurnFailure): Outcome<T> {
 export type TurnEvent =
   | { t: 'hold-started'; at: number }
   | { t: 'hold-ended'; at: number }
+  /** The hold reached `MAX_HOLD_MS` and was ended for the user rather than by them. */
+  | { t: 'hold-capped' }
   | { t: 'level-changed'; level: number }
   | { t: 'transcribed' }
   | { t: 'replied'; speech: SpeechOutcome }
@@ -93,6 +115,8 @@ export type TurnEvent =
  * - a hold starts a recording ONLY from `idle`, so an auto-repeating key held down produces one
  *   recording instead of a new one per repeat;
  * - a hold shorter than `MIN_HOLD_MS` returns to `idle` and never reaches transcription;
+ * - a hold that reaches `MAX_HOLD_MS` is ended here rather than left to whatever was going to
+ *   stop it, which may be nothing;
  * - a second hold while the turn is busy is refused by the state, not queued.
  */
 export function nextTurnState(state: TurnState, event: TurnEvent): TurnState {
@@ -104,6 +128,11 @@ export function nextTurnState(state: TurnState, event: TurnEvent): TurnState {
     case 'hold-ended':
       if (state.k !== 'recording') return state
       return event.at - state.startedAt < MIN_HOLD_MS ? { k: 'idle' } : { k: 'transcribing' }
+
+    case 'hold-capped':
+      // Reaching the ceiling is a completed hold, not a failure: the turn goes on to
+      // transcription with what was captured. It cannot be under MIN_HOLD_MS by construction.
+      return state.k === 'recording' ? { k: 'transcribing' } : state
 
     case 'level-changed':
       return state.k === 'recording' ? { ...state, level: event.level } : state
@@ -131,4 +160,14 @@ export function nextTurnState(state: TurnState, event: TurnEvent): TurnState {
       throw new Error(`unhandled turn event: ${JSON.stringify(unhandled)}`)
     }
   }
+}
+
+/**
+ * Whether a recording has reached its ceiling, as a pure predicate.
+ *
+ * Here rather than in the renderer's effect so the rule is one value the machine and the
+ * interface agree on, and so it is testable without a microphone.
+ */
+export function holdExceeded(state: TurnState, now: number): boolean {
+  return state.k === 'recording' && now - state.startedAt >= MAX_HOLD_MS
 }

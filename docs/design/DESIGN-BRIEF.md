@@ -298,31 +298,70 @@ file — the plan wins on behaviour — the consequences are:
   quietly reports a design as saying something it does not say is worse than a design that is out
   of date.
 
-### Items this revision could not verify
+### Items this revision could not verify — **all settled, by reading the canvas**
 
-Each is settled by reading `Voice Desktop.dc.html`. Until then this file states no value for them:
+The previous revision could not reach the design project and listed these as open rather than
+guessing. They were read from `Voice Desktop.dc.html` (design `0.3.1`) during S8 and are now
+facts rather than questions:
 
-- the names of the four failure artboards, and which of `1001` / `1101` / `1201` / `1211` belongs
-  to which failure;
-- whether the canvas's failure headlines, body copy and action labels match the table in §5;
-- the exact name form of the three dark artboards;
-- whether the canvas states a **minimum** window size, and whether it agrees with the 720 × 560
-  the repository currently uses (§3);
-- the English wording of the left panel's footer (§3);
-- whether `empty-speech`, the fifth failure kind in `docs/PLAN.md` §7, has a designed surface;
-- how `--state-thinking` and the `speaking` state are drawn (§11).
+- **The fifteen artboards, named.** `01 idle` · `02 idle — empty` · `03 recording` ·
+  `04 transcribing` · `05 thinking` · `06 reply` · `07 error / microphone denied` ·
+  `08 error / setup incomplete` · `09 error / agent failed` · `10 error / timed out` ·
+  `11 first run` · `12 about / credits` · `13 idle — dark` · `14 recording — dark` ·
+  `15 reply — dark`.
+- **The error-code mapping**, which §5 deliberately refused to assert: `1001 · 000` microphone
+  denied, `1101 · 127` setup incomplete, `1201 · 001` agent failed, `1211 · 124` timed out. The
+  sub-codes are a shell's own: `127` is "command not found" and `124` is "timed out". The
+  implementation takes this table from the canvas, in `src/renderer/src/components/failure.ts`.
+- **The failure copy matches §5's table**, headline for headline, including the two band
+  kickers the table did not record: `Your machine — fix once` and `This turn — try again`.
+- **`empty-speech` has no artboard.** Four boards, five failure kinds, confirmed. It is not an
+  omission: a silent recording is a slip, not a broken machine and not a failed agent. It
+  borrows the quietest treatment and is filed under *this turn*.
+- **The left panel's footer**, verbatim on every board: *"The agent writes these files. VoiceDesk
+  never edits them itself."*
+- **No minimum window size is stated on the canvas.** The repository's 720 × 560 therefore
+  stands as a repo-side decision, as §3 already said, and the default 800 × 720 is the canvas's.
+- **`--state-thinking` covers both waits**, and `speaking` draws from the same role: the title
+  bar shows one pill, `WORKING`, for transcribing, thinking and speaking. The four roles name
+  what the session is DOING, which is why six states collapse onto three answers rather than
+  each getting a colour of its own.
 
-### Behaviour the canvas needs and the plan does not yet describe
+### The product's name is two names, on purpose
 
-The left panel (§3) asks for two things the plan's IPC contract does not currently provide:
+The canvas renders **`VoiceDesk`** in the window chrome and in every string of body copy. The
+repository, the package and these documents say **`VoiceDeskElectron`**. Applying the rule in
+this file's header — the canvas wins on what the window looks like — the window says `VoiceDesk`
+and everything outside it says `VoiceDeskElectron`. That is a decision, recorded here, and not
+drift: the shorter name is the one drawn at 16px in a title bar, and the longer one is the one
+that has to be unambiguous in a package registry and a filename.
 
-- an enumeration of `notes/*.md` **at rest** — before a turn, and between turns. `docs/PLAN.md`
-  §7 declares channels for transcribe, ask, speak, app info and turn state; none of them lists the
-  notes folder;
-- a **per-file distinction between read and written**. `AskRes` carries `notes: z.array(z.string())`,
-  a flat list of names, which cannot separate `EDITED` from `READING` and says nothing about the
-  `UNCHANGED` files that make up most of the panel.
+### Behaviour the canvas needed and the plan did not describe — **closed**
 
-This is a behavioural gap rather than a visual one, so by the rule in the header it is settled in
-`docs/PLAN.md` first and reflected here afterwards. It is recorded in this file because the design
-depends on it.
+The left panel (§3) asked for two things the plan's IPC contract did not provide: an enumeration
+of `notes/*.md` **at rest**, and a **per-file distinction between read and written**, which a flat
+`notes: z.array(z.string())` cannot express.
+
+Both were settled in `docs/PLAN.md` §7 first, as the rule in this file's header requires, and then
+built: the contract gained a `notes:list` channel for the folder at rest, and `NoteFileSchema`
+carrying `edited` / `read` / `unchanged` per file. Which side supplies which half is part of the
+answer — the rows come from `readdir` and the statuses from the agent's own tool calls, because a
+tool call is evidence of intent and the folder is evidence of outcome, and this panel claims to
+show the folder.
+
+Reading the statuses at all is why the adapter asks the CLI for `--output-format stream-json`
+rather than `json`: only the streamed events carry the agent's tool calls.
+
+### The model readout — **resolved as this file predicted**
+
+The canvas's `claude-sonnet-4-5` is stale artboard copy on all fifteen boards and still needs
+re-rendering by whoever owns the canvas. The implementation does what the resolution above says:
+the readout shows the tier the app is configured to invoke, and the model the CLI reports having
+actually run once a turn has produced one, read from the reply's `modelUsage`. Nothing in the UI
+hard-codes either string.
+
+One thing did change underneath it. `VOICEDESK_AGENT_MODEL` is now a three-value enumeration —
+`haiku`, `sonnet`, `opus` — with `haiku` still the default and still the only tier this delivery
+is exercised on. So the canvas's `claude-sonnet-4-5` is no longer describing a tier the app
+cannot reach; it is describing one an operator may deliberately select. It remains wrong as a
+default, and the readout still reports rather than recites.

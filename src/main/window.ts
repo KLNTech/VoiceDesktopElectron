@@ -15,7 +15,7 @@ import { BrowserWindow, nativeTheme, shell } from 'electron'
  * with it. Hard-coding only the light one — which this did until it was noticed — means a dark
  * system paints a pale window for the first frame and on every resize.
  */
-const BACKGROUND = { light: '#f5f3ef', dark: '#141210' } as const
+const BACKGROUND = { light: '#f2f2f3', dark: '#2b2b2d' } as const
 
 export const WINDOW_BOUNDS = {
   width: 800,

@@ -83,11 +83,25 @@ anywhere else means maintaining two boundaries that will disagree.
 |---|---|---|---|
 | **main** | full Node + OS | infrastructure **and** composition root — "the backend" | anything |
 | **preload** | bridge only | the contract | `electron` + shared types |
-| **renderer** | web page | presentation | shared types and the bridge — nothing else |
+| **renderer** | web page | presentation | shared types, the bridge, and `domain/model` — pure types and pure functions. Never `domain/ports`, `domain/usecases` or `infrastructure` |
 | **domain** | *not a process* | policy: use cases, models, ports | **nothing** platform-shaped |
 
 `domain/` is plain TypeScript that would run in a browser, in a test, or in a CLI. It is why the
 tests need no Electron at all.
+
+That is also why the renderer row above says `domain/model` rather than "nothing else". It used
+to say the narrower thing and was contradicted by this very paragraph three lines later, and by
+the code: `useTurn.ts` runs `nextTurnState` and `MIN_HOLD_MS` as VALUES, because running the
+turn machine in the renderer is the only way to get the zero-latency key handling §2 requires —
+a round trip to main to learn whether a keypress starts a recording is a round trip the user
+feels. The line that matters is not "may the renderer see the domain" but "may it see a SEAM":
+a port or an adapter in a sandboxed page is Node code where there is no Node.
+
+Both halves are now gated rather than described. `test/architecture.test.ts` checks that
+`domain/` imports no platform — including the dynamic, side-effect, `require` and bare-builtin
+forms its first regex missed, and `process.env`, which needs no import at all — and, in the
+other direction, that nothing under `src/renderer/` imports `infrastructure`, `domain/ports` or
+`domain/usecases`.
 
 ### Folder layout
 
@@ -143,17 +157,31 @@ silent pass is a glob that matched nothing.
 
 ```ts
 // src/main/composition-root.ts
-export function buildApp(env: Env) {
+export function buildPorts(env: Env): Ports {
   const transcriber: Transcriber        = new WhisperCppTranscriber(env.whisperBin, env.modelPath)
   const agent: AgentRunner              = new ClaudeCliAgentRunner(env.agentBin, env.notesDir)
   const voice: SpeechSynthesizer        = new MacSaySynthesizer(env.voice)
-  return { runVoiceTurn: makeRunVoiceTurn({ transcriber, agent, voice }) }
+  return { transcriber, agent, voice, notes: new MarkdownNotesFolder(env.notesDir) }
 }
 ```
 
 Selection happens **by outcome** — platform, env var, availability — in this one file. A `new
 WhisperCppTranscriber()` anywhere else is a dead seam. IPC handlers are adapters too: unwrap,
-call the use case, wrap. A handler containing business logic has moved policy into the framework.
+validate, call the port, wrap. A handler containing business logic has moved policy into the
+framework.
+
+**It returns the ports, not one assembled use case, and that is deliberate.** An earlier version
+of this example returned `{ runVoiceTurn: makeRunVoiceTurn(...) }` and told handlers to "call the
+use case" — which contradicted §7 three sections later, where the whole reason there are three
+channels is that the transcript must reach the screen *before* the agent starts thinking. One
+IPC call cannot answer an interface that needs three returns at three different times, so the
+handlers drive the ports and the sequencing lives in the renderer's `useTurn`.
+
+`makeRunVoiceTurn` is the same flow written as a pure function, and it is kept: it is how the
+policy — silence ends the turn, a voice that will not start is not a failed turn — is tested
+with no Electron, no binaries and no network, which is S3's acceptance criterion. It is a
+second, documented shape of the same thing, not dead code, and this paragraph is the record that
+it was a choice.
 
 ---
 
@@ -224,8 +252,8 @@ are another program's flags and they can move.
 
 | flag | why |
 |---|---|
-| `-p <prompt>` | non-interactive: print the answer and exit |
-| `--output-format json` | a machine-readable envelope. Text output is for humans and changes without warning |
+| `-p` | non-interactive: print the answer and exit. It is a BOOLEAN flag; the prompt is not its argument — see below |
+| `--output-format stream-json --verbose` | a machine-readable envelope. Text output is for humans and changes without warning. **`stream-json` and not `json`**, because only the streamed events carry the agent's tool calls, and the tool calls are the only way the notes panel can tell a file the agent rewrote from one it merely opened (§7). `--verbose` is not optional: the CLI refuses the combination without it, at runtime, and its help text does not say so |
 | `--model haiku` | the cheapest current tier, pinned by **alias** rather than by a dated snapshot: an alias cannot resolve to an Opus-tier model, it follows the cheap tier when the cheap tier moves, and it outlives the retirement of any one snapshot. `VOICEDESK_AGENT_MODEL` (default `haiku`) is the deliberate opt-in for something stronger |
 | `--allowedTools Read,Write,Edit,Glob,Grep` | exactly the capability the feature needs — read and write notes |
 | `--restricted` | removes the built-in command-running tools and web fetch entirely. Belt to the allowlist's braces |
@@ -237,6 +265,23 @@ are another program's flags and they can move.
 
 Deliberately **not** granted: `Bash` and every other command-running tool. "The agent might need
 it" trades the entire permission boundary for a maybe.
+
+**The prompt travels on stdin, not in the argv.** Verified against 2.1.263, and for two reasons.
+
+The first is that it cannot go in the argv safely here. `--add-dir` and `--allowedTools` are
+**variadic**: they consume every following bare word, so a prompt sitting after either of them is
+swallowed as one more directory, and the CLI then answers *"Input must be provided either through
+stdin or as a prompt argument"* — having just eaten the prompt it is asking for. Ordering the argv
+around that is a rule someone has to keep remembering; stdin removes the class.
+
+The second is that a process argument is world-readable. Everything the user dictates would
+otherwise sit in `ps` output for every account on the machine, which is a strange property for an
+app whose entire input is someone talking.
+
+The argv is built by one exported pure function, so the flag set above is **asserted** by
+`test/claude-cli-agent.test.ts` rather than described here: the permission boundary this app is
+built around IS this list, and a flag quietly dropped in a refactor breaks nothing that an
+ordinary test would notice.
 
 **Why the model is pinned, and pinned to an alias.** This is a demonstration application, and a
 demo that quietly reaches for an expensive tier bills someone for a decision nobody made. At
@@ -376,20 +421,47 @@ trust boundary: one XSS in the app's own UI is a compromised client.
 ```ts
 // shared/ipc.ts — the single declaration, imported by main, preload and renderer
 export const CH = {
-  transcribe: 'turn:transcribe',
-  ask:        'turn:ask',
-  speak:      'turn:speak',
-  appInfo:    'app:info',
-  state:      'turn:state',
+  transcribe:   'turn:transcribe',
+  ask:          'turn:ask',
+  speak:        'turn:speak',
+  appInfo:      'app:info',
+  notes:        'notes:list',
+  openSettings: 'os:open-settings',
+  state:        'turn:state',
 } as const
 
 export const TranscribeReq = z.object({
-  pcm:        z.instanceof(ArrayBuffer).refine(b => b.byteLength <= 16 * 1024 * 1024),
-  sampleRate: z.literal(16000),
+  pcm:        z.instanceof(ArrayBuffer).refine(b => b.byteLength <= 8 * 1024 * 1024),
+  // NOT pinned to 16 kHz: §6 asks the device for it as an optimisation and writes whatever rate
+  // it actually gets. A literal here would reject exactly the 48 kHz device §6 promises to support.
+  sampleRate: z.number().int().min(8_000).max(192_000),
+  heldMs:     z.number().nonnegative(),
 })
-export const AskReq = z.object({ text: z.string().min(1).max(4000) })
-export const AskRes = z.object({ reply: z.string(), notes: z.array(z.string()) })
+export const NoteFileSchema = z.object({
+  name:   z.string().min(1).max(255),
+  status: z.enum(['edited', 'read', 'unchanged']),
+})
+export const NotesListRes = z.object({ files: z.array(NoteFileSchema) })
+export const AskReq = z.object({ text: z.string().min(1).max(4000), sessionId: z.string().nullable() })
+export const AskRes = outcomeOf(z.object({
+  reply: z.string(), notes: z.array(NoteFileSchema),
+  model: z.string(), sessionId: z.string().nullable(), costUsd: z.number().nullable(),
+}))
 ```
+
+**Two of those channels were added for the design's left panel, and the reason is worth stating.**
+The canvas keeps a standing list of `notes/*.md` beside the turn, each row marked `EDITED`,
+`READING` or `UNCHANGED` — the durable evidence of what the agent did, since the reply scrolls
+away and the folder does not. The contract could not serve it: nothing enumerated the folder **at
+rest**, before or between turns, and `AskRes.notes` was a flat `z.array(z.string())`, which can
+say a file was *involved* and never *how*. `notes:list` answers the first and `NoteFileSchema` the
+second. `os:open-settings` is the microphone board's action, and it takes **no argument on
+purpose**: a bridge method that accepted a URL would be `shell.openExternal` with extra steps, so
+main owns the one URL it will open.
+
+Which side supplies which half also matters: the ROWS come from `readdir` and the STATUSES from
+the agent's own tool calls. A tool call is evidence of intent; the folder is evidence of outcome,
+and the panel claims to show the folder.
 
 Rules that follow from it:
 
@@ -488,7 +560,7 @@ Every version is the current stable at the time of writing, and each one is a ch
 | **Electron** | 44.x | the requirement is a desktop app driving local binaries and the file system; Electron is the shortest path from a web UI to that, and the version line carries `windowStatePersistence` and the reworked clipboard |
 | **TypeScript** | 7.x | `strict`. Types at the seams are the review this project cannot afford to run by hand |
 | **electron-vite** | 5.x | gives main / preload / renderer as three build outputs with three tsconfigs — the layer split, for free, instead of a hand-rolled build |
-| **Vite** | 8.x | the renderer dev server and bundler `electron-vite` builds on |
+| **Vite** | 7.x | the renderer dev server and bundler `electron-vite` builds on. **Pinned below the current major on purpose:** `electron-vite@5` declares a peer range on Vite 7, and `@vitejs/plugin-react@6` wants Vite 8 — so the two cannot both be satisfied today. This row said `8.x` while `package.json` pinned `7.3.6`, which is the kind of drift that sends someone to "fix" the toolchain and rediscover a conflict this repo already resolved |
 | **React** | 19.x | the UI is one screen with one state machine; React's cost here is small and the component vocabulary matches the design deliverable |
 | **zod** | 4.x | schema validation at the two seams that need it: IPC payloads and agent stdout. Chosen over hand-written type guards because a guard that drifts from its type compiles fine |
 | **Vitest** | 5.x | runs the domain and adapter tests with no Electron at all; same config shape as the renderer build |

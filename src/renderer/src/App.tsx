@@ -1,145 +1,186 @@
-import type { TurnFailure, TurnState } from '../../domain/model/turn'
+import { useCallback, useState } from 'react'
+
+import { FailurePanel } from './components/FailurePanel'
+import { NotesPane } from './components/NotesPane'
 import { TalkButton } from './components/TalkButton'
+import { TitleBar } from './components/TitleBar'
+import { TurnLog } from './components/TurnLog'
+import { AboutSheet } from './components/AboutSheet'
+import { FirstRun } from './components/FirstRun'
 import { talkControl } from './components/talkControl'
-import { t } from './i18n'
+import { t, type MessageKey } from './i18n'
 import { useTurn } from './useTurn'
 
 /**
- * The iteration-1 shell: hold, speak, release, and your words appear as text.
+ * The window, implemented against the canvas `Voice Desktop.dc.html` at design `0.3.1`.
  *
- * This is not the approved design. The canvas ("Voice Desktop", 0.3.1) is implemented in one
- * pass in S8, against its fifteen artboards — approximating it here would mean designing the
- * interface twice and throwing one away.
+ * One window, two panes, and a state machine with a face: every artboard in group A is a state
+ * of this component rather than a screen of its own, which is why there is no routing here and
+ * no navigation anywhere in the app.
  */
 export function App(): React.JSX.Element {
-  const { state, level, turns, notice, beginHold, endHold, dismiss } = useTurn()
+  const turn = useTurn()
+  const [aboutOpen, setAboutOpen] = useState(false)
+
+  const openAbout = useCallback(() => setAboutOpen(true), [])
+  const closeAbout = useCallback(() => setAboutOpen(false), [])
+
+  const control = talkControl(turn.state)
+  const busy = busyPhase(turn.state)
 
   return (
-    <main className="shell">
-      <header className="bar">
-        <h1>{t('app.name')}</h1>
-        <span className="version">
-          v{__APP_VERSION__} · {import.meta.env.DEV ? 'dev' : 'build'}
-        </span>
-        <span className={`state state-${state.k}`}>{stateLabel(state.k)}</span>
-      </header>
+    <div className="shell">
+      <TitleBar
+        state={turn.state}
+        model={turn.model}
+        version={__APP_VERSION__}
+        stage={turn.stage}
+        onAbout={openAbout}
+      />
 
-      <section className="turns">
-        {turns.length === 0 && state.k !== 'error' ? (
-          <p className="empty">{t('turn.empty')}</p>
-        ) : (
-          turns.map((turn) => (
-            <article key={turn.id} className="turn">
-              <span className="who">{t('turn.you')}</span>
-              <p>{turn.you}</p>
-            </article>
-          ))
-        )}
+      <div className="panes">
+        <NotesPane files={turn.notes} folderChosen={turn.folderChosen} />
 
-        {state.k === 'error' ? <Failure failure={state.failure} onDismiss={dismiss} /> : null}
-      </section>
+        <main className="turn-pane">
+          <div className="turn-head">
+            {t(turn.turns.length > 1 ? 'turn.head.last' : 'turn.head.this')}
+          </div>
 
-      <footer className="foot">
-        {notice === 'tooShort' ? <p className="notice">{t('talk.tooShort')}</p> : null}
-        <TalkButton
-          control={talkControl(state)}
-          level={level}
-          onHoldStart={beginHold}
-          onHoldEnd={endHold}
+          <div className="turn-log">
+            {/* First run is the empty state that is DESIGNED rather than left over: the left
+                pane is the thing being asked for, so the right pane explains the two steps. */}
+            {turn.firstRun ? <FirstRun notesDir={turn.notesDir} /> : null}
+
+            {!turn.firstRun && turn.turns.length === 0 && turn.state.k !== 'error' ? (
+              <p className="turn-empty">
+                <strong>{t('turn.emptyTitle')}</strong>
+                {t('turn.emptyBody')}
+              </p>
+            ) : null}
+
+            <TurnLog turns={turn.turns} onSpeak={turn.speak} speakable={turn.speakable} />
+
+            {busy === null ? null : (
+              <BusyRow
+                kicker={busy.kicker}
+                meta={busy.meta}
+                progress={busy.progress}
+                onStop={turn.cancel}
+              />
+            )}
+
+            {turn.state.k === 'error' ? (
+              <FailurePanel
+                failure={turn.state.failure}
+                onDismiss={turn.dismiss}
+                onRetry={turn.dismiss}
+              />
+            ) : null}
+          </div>
+
+          <TalkButton
+            control={control}
+            level={turn.level}
+            heldSeconds={turn.heldSeconds}
+            disabledReason={disabledReason(turn.state, control)}
+            onHoldStart={turn.beginHold}
+            onHoldEnd={turn.endHold}
+          />
+          {turn.notice === null ? null : <p className="pane-empty">{t('talk.tooShort')}</p>}
+        </main>
+      </div>
+
+      {aboutOpen ? (
+        <AboutSheet
+          version={__APP_VERSION__}
+          stage={turn.stage}
+          notices={turn.notices}
+          onClose={closeAbout}
         />
-      </footer>
-    </main>
-  )
-}
-
-/**
- * Takes the tag union, not `string`. Widening the parameter to a primitive is what silently
- * disables the exhaustiveness check below: with `k: string` the `never` guard can never be
- * reached, so adding a turn state would compile and quietly render the wrong label.
- */
-function stateLabel(k: TurnState['k']): string {
-  switch (k) {
-    case 'idle':
-      return t('state.idle')
-    case 'recording':
-      return t('state.recording')
-    case 'transcribing':
-      return t('state.transcribing')
-    case 'thinking':
-      return t('state.thinking')
-    case 'speaking':
-      return t('state.speaking')
-    case 'error':
-      return t('state.error')
-    default: {
-      const unhandled: never = k
-      throw new Error(`unhandled turn state: ${String(unhandled)}`)
-    }
-  }
-}
-
-/**
- * Failures are shown by KIND, and the split that matters is "your machine needs fixing" versus
- * "this turn failed" — the two need different actions from the user, and collapsing them sends
- * someone to debug the wrong thing.
- */
-function Failure({
-  failure,
-  onDismiss,
-}: {
-  failure: TurnFailure
-  onDismiss: () => void
-}): React.JSX.Element {
-  const { title, body, category } = describe(failure)
-  return (
-    <div className={`failure cat-${category}`} role="alert">
-      <strong>{title}</strong>
-      <p>{body}</p>
-      <button type="button" onClick={onDismiss}>
-        {t('err.dismiss')}
-      </button>
+      ) : null}
     </div>
   )
 }
 
 /**
- * The three categories the design's error registry uses, and which the window renders
- * differently. This replaced a boolean called `yours`: it could only ever say "your machine or
- * not", while the design distinguishes a missing install from a refused permission — two
- * problems with completely different fixes — and the boolean had no room for the difference.
+ * The two waits, made legible rather than stretched (`docs/design/DESIGN-BRIEF.md` §9).
+ *
+ * `thinking` gets a bounded progress bar because it is the long one — seconds to a minute — and
+ * a wait with no visible end reads as hung. `transcribing` gets a label and no bar: it is
+ * short, and a bar that fills in half a second is decoration.
  */
-type FailureCategory = 'setup' | 'permission' | 'failure'
-
-function describe(failure: TurnFailure): {
-  title: string
-  body: string
-  category: FailureCategory
-} {
-  switch (failure.kind) {
-    case 'mic-denied':
-      // The two denials need different actions from the user, so they get different words.
-      return failure.denial === 'system-settings'
-        ? { title: t('err.mic.deniedTitle'), body: t('err.mic.deniedBody'), category: 'permission' }
-        : { title: t('err.mic.retryTitle'), body: t('err.mic.retryBody'), category: 'permission' }
-    case 'no-microphone':
-      return { title: t('err.mic.noneTitle'), body: t('err.mic.noneBody'), category: 'permission' }
-    case 'setup':
-      return { title: t('err.setupTitle'), body: failure.hint, category: 'setup' }
-    case 'transcribe-failed':
-      return { title: t('err.transcribeTitle'), body: failure.stderr, category: 'failure' }
-    case 'agent-failed':
-      return { title: t('err.agentTitle'), body: failure.stderr, category: 'failure' }
-    case 'timeout':
-      return {
-        title: t('err.timeoutTitle'),
-        body: `Stopped after ${Math.round(failure.afterMs / 1000)}s.`,
-        category: 'failure',
-      }
-    case 'empty-speech':
-      return { title: t('err.emptyTitle'), body: t('err.emptyBody'), category: 'failure' }
+function busyPhase(
+  state: ReturnType<typeof useTurn>['state'],
+): { kicker: MessageKey; meta: string; progress: number | null } | null {
+  switch (state.k) {
+    case 'transcribing':
+      return { kicker: 'busy.transcribing', meta: t('busy.local'), progress: null }
+    case 'thinking':
+      return { kicker: 'busy.thinking', meta: '', progress: 0 }
+    case 'idle':
+    case 'recording':
+    case 'speaking':
+    case 'error':
+      return null
     default: {
-      const unhandled: never = failure
-      throw new Error(`unhandled failure: ${JSON.stringify(unhandled)}`)
+      const unhandled: never = state
+      throw new Error(`unhandled turn state: ${JSON.stringify(unhandled)}`)
     }
   }
+}
+
+/** Why the control cannot be held, when it cannot. The design labels the reason rather than
+    presenting a dead button (artboards 05, 07, 08). */
+function disabledReason(
+  state: ReturnType<typeof useTurn>['state'],
+  control: ReturnType<typeof talkControl>,
+): MessageKey | null {
+  if (control === 'busy') return 'talk.busy'
+  if (state.k === 'error' && state.failure.kind === 'mic-denied') return 'talk.noMic'
+  if (state.k === 'error' && state.failure.kind === 'no-microphone') return 'talk.noMic'
+  if (state.k === 'error' && state.failure.kind === 'setup' && state.failure.what === 'whisper') {
+    return 'talk.noWhisper'
+  }
+  return null
+}
+
+/** The agent working, with the bound it is working against — never an unbounded spinner. */
+function BusyRow({
+  kicker,
+  meta,
+  progress,
+  onStop,
+}: {
+  readonly kicker: MessageKey
+  readonly meta: string
+  readonly progress: number | null
+  readonly onStop: () => void
+}): React.JSX.Element {
+  return (
+    <article className="turn-entry">
+      <span className="turn-who">{t('turn.agent')}</span>
+      <span className="turn-time" />
+      <div className="progress">
+        <div className="progress-meta">
+          <span>{t(kicker)}</span>
+          {meta === '' ? null : <span>{meta}</span>}
+        </div>
+        {progress === null ? null : (
+          <div className="progress-track">
+            <div className="progress-fill" style={progressStyle(progress)} />
+          </div>
+        )}
+        <div>
+          <button type="button" className="btn btn-ghost" onClick={onStop}>
+            {t('busy.stop')}
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+/** `--progress` is a custom property, so the return type is widened rather than asserted. */
+function progressStyle(value: number): React.CSSProperties & { '--progress': number } {
+  return { '--progress': value }
 }

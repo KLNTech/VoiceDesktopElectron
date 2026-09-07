@@ -1,12 +1,10 @@
 import type { Outcome } from '../model/turn'
 import type { Transcript } from '../model/transcript'
+import type { AudioClip } from '../model/audio-clip'
 
-/** Mono audio captured from one hold, at the rate the transcriber expects. */
-export interface AudioClip {
-  readonly samples: Float32Array
-  readonly sampleRate: number
-  readonly heldMs: number
-}
+// Re-exported so the adapters and tests that import it from here keep working: the type moved
+// because of who is allowed to NAME it, not because this port stopped being about audio.
+export type { AudioClip }
 
 /** Speech in, text out. The only implementation that ships runs whisper.cpp on this machine. */
 export interface Transcriber {

@@ -9,7 +9,7 @@ const clip: AudioClip = { samples: new Float32Array(16_000), sampleRate: 16_000,
 
 const reply: AgentReply = {
   text: 'Added it to shopping.md.',
-  notes: ['shopping.md'],
+  notes: [{ name: 'shopping.md', status: 'edited' }],
   model: 'claude-haiku-4-5',
   sessionId: 'session-1',
   costUsd: 0.0004,

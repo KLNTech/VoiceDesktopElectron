@@ -1,37 +1,66 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { MIN_HOLD_MS, nextTurnState, type TurnFailure, type TurnState } from '../../domain/model/turn'
+import {
+  holdExceeded,
+  MIN_HOLD_MS,
+  nextTurnState,
+  type TurnFailure,
+  type TurnState,
+} from '../../domain/model/turn'
 import { isEmpty } from '../../domain/model/transcript'
+import type { NoteFile } from '../../domain/model/note-file'
+import type { NoticeSchema } from '../../../shared/ipc'
 import { MicrophoneRecorder } from './audio/recorder'
+import type { CompletedTurn } from './components/TurnLog'
 
-export interface CompletedTurn {
-  readonly id: number
-  readonly you: string
+export interface TurnView {
+  readonly state: TurnState
+  readonly level: number
+  readonly heldSeconds: number
+  readonly turns: readonly CompletedTurn[]
+  readonly notes: readonly NoteFile[]
+  readonly notice: string | null
+  readonly model: string
+  readonly stage: string
+  readonly notesDir: string
+  readonly notices: readonly NoticeSchema[]
+  readonly folderChosen: boolean
+  readonly firstRun: boolean
+  readonly speakable: boolean
+  readonly beginHold: () => void
+  readonly endHold: () => void
+  readonly dismiss: () => void
+  readonly cancel: () => void
+  readonly speak: (text: string) => void
 }
 
 /**
  * Ties the domain's turn machine to the microphone and the bridge.
  *
  * Every state change goes through `nextTurnState`, so the rules the machine enforces — key
- * repeat is a no-op, a hold under 250 ms is discarded, a second hold while busy is refused —
- * hold here too, rather than being reimplemented in an event handler and drifting.
+ * repeat is a no-op, a hold under 250 ms is discarded, a hold over 120 s is ended, a second
+ * hold while the turn is busy is refused — hold here too, rather than being reimplemented in an
+ * event handler and drifting.
  */
-export function useTurn(): {
-  state: TurnState
-  level: number
-  turns: readonly CompletedTurn[]
-  notice: string | null
-  beginHold: () => void
-  endHold: () => void
-  dismiss: () => void
-} {
+export function useTurn(): TurnView {
   const [state, setState] = useState<TurnState>({ k: 'idle' })
   const [level, setLevel] = useState(0)
+  const [heldSeconds, setHeldSeconds] = useState(0)
   const [turns, setTurns] = useState<readonly CompletedTurn[]>([])
+  const [notes, setNotes] = useState<readonly NoteFile[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  const [info, setInfo] = useState<{
+    model: string
+    stage: string
+    notesDir: string
+    notices: readonly NoticeSchema[]
+  }>({ model: '', stage: 'dev', notesDir: '', notices: [] })
+  const [everTalked, setEverTalked] = useState(false)
+  const [speakable, setSpeakable] = useState(true)
 
   const recorder = useRef<MicrophoneRecorder | null>(null)
   const releaseWanted = useRef(false)
+  const sessionId = useRef<string | null>(null)
   // Kept current by `apply`, never written during render: a ref touched while rendering can
   // leave the component showing a state the ref disagrees with.
   const stateRef = useRef<TurnState>(state)
@@ -50,6 +79,25 @@ export function useTurn(): {
     },
     [apply],
   )
+
+  /** The folder, re-read after every turn: the panel claims to show the folder, so it asks it. */
+  const refreshNotes = useCallback(async () => {
+    const listing = await window.voicedesk.notes()
+    setNotes(listing.files)
+  }, [])
+
+  useEffect(() => {
+    void (async () => {
+      const app = await window.voicedesk.appInfo()
+      setInfo({
+        model: app.agentModel,
+        stage: app.stage,
+        notesDir: app.notesDir,
+        notices: app.notices,
+      })
+      await refreshNotes()
+    })()
+  }, [refreshNotes])
 
   const beginHold = useCallback(() => {
     // The guard lives in the machine, not here: asking it first is what makes an auto-repeating
@@ -78,13 +126,17 @@ export function useTurn(): {
           await mic.release()
           return
         }
+        setEverTalked(true)
         // Only now is the microphone actually live, so this is when the state may say so.
         // `startedAt` comes from the recorder, so the machine measures the hold on the same
         // clock the recorder does rather than on one that started later.
         apply({ t: 'hold-started', at: mic.startedAtMs })
       } catch (error) {
         recorder.current = null
-        fail({ kind: 'transcribe-failed', stderr: `could not open the microphone: ${String(error)}` })
+        fail({
+          kind: 'transcribe-failed',
+          stderr: `could not open the microphone: ${String(error)}`,
+        })
       }
     })()
   }, [apply, fail])
@@ -104,6 +156,7 @@ export function useTurn(): {
       try {
         const clip = await mic.stop()
         setLevel(0)
+        setHeldSeconds(0)
         // Ended on the recorder's own clock, so the 250 ms rule measures the whole hold.
         const after = apply({ t: 'hold-ended', at: mic.startedAtMs + clip.heldMs })
 
@@ -114,30 +167,58 @@ export function useTurn(): {
           return
         }
 
-        const result = await window.voicedesk.transcribe({
+        const heard = await window.voicedesk.transcribe({
           pcm: toArrayBuffer(clip.samples),
           sampleRate: Math.round(clip.sampleRate),
           heldMs: Math.round(clip.heldMs),
         })
-
-        if (result.k === 'failed') {
-          fail(result.failure)
+        if (heard.k === 'failed') {
+          fail(heard.failure)
           return
         }
 
         // The domain owns what counts as silence; `text === ''` would let a punctuation-only
         // whisper hallucination through as a real turn.
-        const transcript = { text: result.value.text.trim(), heldMs: result.value.heldMs }
+        const transcript = { text: heard.value.text.trim(), heldMs: heard.value.heldMs }
         if (isEmpty(transcript)) {
           fail({ kind: 'empty-speech' })
           return
         }
-        const text = transcript.text
 
-        setTurns((previous) => [...previous, { id: Date.now(), you: text }])
-        // Iteration 1 ends at the transcript on screen; the agent step lands in iteration 2,
-        // and until it does the turn completes here rather than pretending to think.
+        // The transcript goes on screen BEFORE the agent is asked anything: showing someone
+        // their own words is a separate promise from answering them, and the agent step is the
+        // long one (`docs/PLAN.md` §7 — three channels, for exactly this).
+        const id = Date.now()
+        setTurns((previous) => [
+          ...previous,
+          { id, at: clockTime(), you: transcript.text, agent: null, edited: [] },
+        ])
         apply({ t: 'transcribed' })
+
+        const answer = await window.voicedesk.ask({
+          text: transcript.text,
+          sessionId: sessionId.current,
+        })
+        if (answer.k === 'failed') {
+          fail(answer.failure)
+          return
+        }
+
+        // Carried so "add milk" and "what's on my list?" are one conversation across two spawns.
+        sessionId.current = answer.value.sessionId
+        setInfo((previous) => ({ ...previous, model: answer.value.model }))
+        setNotes(answer.value.notes)
+        setTurns((previous) =>
+          previous.map((entry) =>
+            entry.id === id
+              ? {
+                  ...entry,
+                  agent: answer.value.reply,
+                  edited: answer.value.notes.filter((note) => note.status === 'edited'),
+                }
+              : entry,
+          ),
+        )
         apply({ t: 'replied', speech: 'not-requested' })
       } catch (error) {
         // Nothing may leave the turn suspended. A rejection with no handler is how a broken
@@ -149,20 +230,54 @@ export function useTurn(): {
     })()
   }, [apply, fail])
 
-  const dismiss = useCallback(() => apply({ t: 'dismissed' }), [apply])
+  /**
+   * S9's control: the reply, read aloud, on request.
+   *
+   * A voice that will not start is never a failed turn — the answer is already on screen. It
+   * withdraws the control instead, which is what `SpeechOutcome`'s third value is for.
+   */
+  const speak = useCallback((text: string) => {
+    void (async () => {
+      const spoken = await window.voicedesk.speak({ text })
+      if (spoken.k === 'failed') setSpeakable(false)
+    })()
+  }, [])
 
-  // The meter is driven from a frame loop, and only while recording. A meter that keeps
-  // running after the hold is a meter that lies about the microphone being open.
+  const dismiss = useCallback(() => {
+    apply({ t: 'dismissed' })
+    void refreshNotes()
+  }, [apply, refreshNotes])
+
+  /**
+   * `Stop` on the long wait. It ends the TURN, not the child: main owns the deadline, and a
+   * renderer that could kill a process would be a renderer with more authority than the bridge
+   * gives it. The reply that eventually arrives is discarded by the state guard.
+   */
+  const cancel = useCallback(() => {
+    apply({ t: 'replied', speech: 'not-requested' })
+  }, [apply])
+
+  // The meter and the hold timer are driven from a frame loop, and only while recording. A
+  // meter that keeps running after the hold is a meter that lies about the microphone.
   useEffect(() => {
     if (state.k !== 'recording') return undefined
     let frame = 0
     const tick = (): void => {
       setLevel(recorder.current?.level() ?? 0)
+      setHeldSeconds((performance.now() - state.startedAt) / 1000)
+      // The ceiling, enforced where the clock already runs. `holdExceeded` is the domain's
+      // rule rather than a comparison written here, so the interface and the machine cannot
+      // disagree about how long is too long.
+      if (holdExceeded(stateRef.current, performance.now())) {
+        apply({ t: 'hold-capped' })
+        endHold()
+        return
+      }
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [state.k])
+  }, [state, apply, endHold])
 
   // The fourth hold-ending event. `pointerup` is not guaranteed to arrive — the OS steals
   // focus, the pointer leaves the button — and a recording that never stops is the bug this
@@ -191,7 +306,33 @@ export function useTurn(): {
     }
   }, [beginHold, endHold])
 
-  return { state, level, turns, notice, beginHold, endHold, dismiss }
+  return {
+    state,
+    level,
+    heldSeconds,
+    turns,
+    notes,
+    notice,
+    model: info.model,
+    stage: info.stage,
+    notesDir: info.notesDir,
+    notices: info.notices,
+    folderChosen: info.notesDir !== '',
+    // First run is "nothing has happened yet", not "the folder is empty": a user with an empty
+    // folder who has already spoken is past the explanation and should not be shown it again.
+    firstRun: !everTalked && turns.length === 0 && notes.length === 0,
+    speakable,
+    beginHold,
+    endHold,
+    dismiss,
+    cancel,
+    speak,
+  }
+}
+
+/** `14:32` — the design times each turn, and the clock is the user's own. */
+function clockTime(): string {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 /**

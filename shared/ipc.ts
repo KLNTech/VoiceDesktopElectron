@@ -13,6 +13,8 @@ export const CH = {
   ask: 'turn:ask',
   speak: 'turn:speak',
   appInfo: 'app:info',
+  notes: 'notes:list',
+  openSettings: 'os:open-settings',
   state: 'turn:state',
 } as const
 
@@ -56,6 +58,23 @@ export const TranscribeReq = z.object({
 })
 export const TranscribeRes = outcomeOf(z.object({ text: z.string(), heldMs: z.number() }))
 
+/**
+ * One row of the notes panel: a file, and what the last turn did to it.
+ *
+ * `AskRes` used to carry `notes: z.array(z.string())` — a flat list of names, which cannot
+ * separate a file the agent rewrote from one it only opened, and says nothing about the
+ * untouched majority that makes up most of the panel. `docs/design/DESIGN-BRIEF.md` §12 records
+ * that gap; this is it closed, and `docs/PLAN.md` §7 is amended to match.
+ */
+export const NoteFileSchema = z.object({
+  /** A bare file name inside `notes/`. Never a path, so nothing can render a home directory. */
+  name: z.string().min(1).max(255),
+  status: z.enum(['edited', 'read', 'unchanged']),
+})
+
+/** The folder AT REST — before a turn, and between turns. Every row `unchanged` by definition. */
+export const NotesListRes = z.object({ files: z.array(NoteFileSchema) })
+
 export const AskReq = z.object({
   text: z.string().min(1).max(4_000),
   sessionId: z.string().nullable(),
@@ -63,7 +82,7 @@ export const AskReq = z.object({
 export const AskRes = outcomeOf(
   z.object({
     reply: z.string(),
-    notes: z.array(z.string()),
+    notes: z.array(NoteFileSchema),
     /** What the CLI reported it ran, not what was configured — the window shows this. */
     model: z.string(),
     sessionId: z.string().nullable(),
@@ -74,12 +93,37 @@ export const AskRes = outcomeOf(
 export const SpeakReq = z.object({ text: z.string().min(1).max(4_000) })
 export const SpeakRes = outcomeOf(z.null())
 
+/**
+ * One row of the about sheet's notices table.
+ *
+ * The app bundles open-source components whose licences require their notices to travel with
+ * it, so this is a legal surface rather than a nicety (`docs/design/DESIGN-BRIEF.md` §7).
+ */
+export const NoticeSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  licence: z.string(),
+})
+
 export const AppInfoRes = z.object({
   version: z.string(),
   stage: z.enum(['dev', 'build']),
   notesDir: z.string(),
-  /** The model the agent CLI is configured to run, shown until a turn reports the real one. */
+  /**
+   * The model readout for the title bar. A plain string, NOT the `AgentModel` enum, because it
+   * must also be able to render a value that is not a tier: when `VOICEDESK_AGENT_MODEL` is set
+   * to something unrecognised the honest readout is what the operator actually configured, and
+   * the first turn then fails with a setup error naming the legal values. Typing this field to
+   * the enum would force the app to display a tier it is not going to run.
+   */
   agentModel: z.string(),
+  /**
+   * Built in main from what is ACTUALLY running — `process.versions` for the runtime, the
+   * lockfile's resolved versions for the packages — never typed into the UI. A hard-coded
+   * version table is a legal notice that goes stale silently, which is the one kind of
+   * inaccuracy this surface cannot afford.
+   */
+  notices: z.array(NoticeSchema),
 })
 
 export const TurnStatePush = z.discriminatedUnion('k', [
@@ -98,6 +142,9 @@ export type AskRes = z.infer<typeof AskRes>
 export type SpeakReq = z.infer<typeof SpeakReq>
 export type SpeakRes = z.infer<typeof SpeakRes>
 export type AppInfoRes = z.infer<typeof AppInfoRes>
+export type NoteFileSchema = z.infer<typeof NoteFileSchema>
+export type NotesListRes = z.infer<typeof NotesListRes>
+export type NoticeSchema = z.infer<typeof NoticeSchema>
 export type TurnStatePush = z.infer<typeof TurnStatePush>
 
 /**
@@ -110,6 +157,16 @@ export interface VoiceDeskBridge {
   ask(request: AskReq): Promise<AskRes>
   speak(request: SpeakReq): Promise<SpeakRes>
   appInfo(): Promise<AppInfoRes>
+  /** The notes folder as it stands right now, so the panel has rows before any turn runs. */
+  notes(): Promise<NotesListRes>
+  /**
+   * Opens macOS's microphone privacy pane — the action the design gives the mic-denied board.
+   *
+   * It takes NO argument, deliberately. A `openExternal(url)` on the bridge would hand the
+   * renderer the ability to launch anything the OS can handle, which is a far larger capability
+   * than "show the user where the switch is". Main owns the one URL.
+   */
+  openSettings(): Promise<void>
   /** Returns its own unsubscribe — a remounting component that cannot detach leaks a listener. */
   onTurnState(listener: (state: TurnStatePush) => void): () => void
 }
