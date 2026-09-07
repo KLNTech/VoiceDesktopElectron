@@ -1,13 +1,23 @@
-import type { MicDenial, TurnFailure } from '../../../domain/model/turn'
+import type { MicDenial, Outcome, TurnFailure } from '../../../domain/model/turn'
+import type { AudioClip } from '../../../domain/model/audio-clip'
 import workletUrl from './pcm-worklet.js?url'
 
-export interface CapturedClip {
-  readonly samples: Float32Array
-  readonly sampleRate: number
-  readonly heldMs: number
-}
+/**
+ * What one hold produced. This IS the domain's `AudioClip` — it was a second, field-for-field
+ * identical declaration, which is a copy that agrees today and has no reason to keep agreeing.
+ */
+export type CapturedClip = AudioClip
 
-export type StartResult = { k: 'ok' } | { k: 'failed'; failure: TurnFailure }
+/**
+ * Starting the microphone succeeds or fails, in the app's one result vocabulary.
+ *
+ * It was written out as `{ k: 'ok' } | { k: 'failed'; failure: TurnFailure }` — branch for
+ * branch, `Outcome<void>` — in a file that already imported from `domain/model/turn` on line
+ * one. `Outcome`'s own comment names what the copy costs: the turn has a third outcome in view,
+ * because `Esc` cancels and cancelled is not broken, and a hand-written union does not receive
+ * that case when it is added.
+ */
+export type StartResult = Outcome<void>
 
 /**
  * The most audio one hold may accumulate, whatever the device's rate.
@@ -93,7 +103,7 @@ export class MicrophoneRecorder {
 
       source.connect(this.node)
       source.connect(this.analyser)
-      return { k: 'ok' }
+      return { k: 'ok', value: undefined }
     } catch (error) {
       await this.release()
       return {

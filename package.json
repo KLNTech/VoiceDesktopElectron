@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
-    "test": "electron-vite build && vitest run",
+    "test": "npm run build && npm run lint && vitest run",
     "verify:clone": "node scripts/verify-clone.mjs"
   },
   "dependencies": {
