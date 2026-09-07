@@ -96,6 +96,26 @@ describe('the README tells the truth about its dependencies', () => {
     expect(readme).toContain(`${width} × ${height}`)
   })
 
+  /**
+   * The one licence claim in the README that is about an ABSENCE.
+   *
+   * `ffmpeg` is GPL-3.0-or-later, which reaches further into a shipped product than anything else
+   * this app touches, and the README says it is not used *on purpose*. An absence is the easiest
+   * claim in any document to stop being true — nobody reviewing a diff that adds a dependency is
+   * thinking about a sentence three sections away — so it is asserted here rather than trusted.
+   *
+   * What this CAN check is the lockfile, which is the whole of this repository's dependency
+   * surface. What it cannot check is the `whisper-cli` the user installs themselves, which is why
+   * F10 — vendoring that binary — carries the constraint in its own row instead of relying on
+   * this test to grow arms it does not have.
+   */
+  it('pulls in no ffmpeg, which is the one licence the README rules out by name', () => {
+    const names = Object.keys(lock.packages).join('\n')
+    expect(names.length).toBeGreaterThan(0)
+    expect(names).not.toMatch(/ffmpeg/i)
+    expect(readme).toContain('`ffmpeg` is GPL-3.0-or-later')
+  })
+
   it('names the agent CLI version the flag set was verified against', () => {
     // Another program's version, so it cannot come from the lockfile — but it is load-bearing:
     // `docs/PLAN.md` §5.2 says the flags were checked against a specific release, and those are
