@@ -49,15 +49,20 @@ and "not in scope yet" never look the same from the outside.
 
 | iteration | subtasks | what exists at the end of it |
 |---|---|---|
-| **1 — current** | **S1 → S6** | the app opens, records while you hold, shows a level meter, and turns your speech into text on screen. It does **not** reach the agent yet |
-| 2 | S7, S10 | the transcript reaches `claude -p`, edits `notes/`, and the reply comes back; one end-to-end launch guards the seam |
-| 3 | S8, S9, S11 | the approved design is implemented, the reply is spoken, and the README is closed out with real numbers |
+| 1 — merged | **S1 → S6** | the app opens, records while you hold, shows a level meter, and turns your speech into text on screen. It does **not** reach the agent yet |
+| **2 — current** | **S7 → S11** | the transcript reaches `claude -p`, edits `notes/`, and the reply comes back; the approved design is implemented; the reply is spoken; one real launch guards the seam; the README is closed out |
 
-S8 stays `BLOCKED` until the design canvas is filled in and approved, which is why it is in the
-last iteration and not the first — the UI is implemented against an approved design, not
-sketched twice.
+**Iterations 2 and 3 were merged into one, by the owner's decision, at the start of this run.**
+The table above originally split them. Recording the change rather than quietly rewriting the
+plan: the trade is a larger PR against a shorter path to a working product, and the owner took
+it knowingly. Everything else about the branching rule is unchanged — one branch, real commits
+as they were written, a merge commit and never a squash.
 
-Iteration 1 deliberately stops **before** the agent adapter. Speech-to-text on screen is a
+S8 was `BLOCKED` on the design canvas being filled in and approved — the UI is implemented
+against an approved design, not sketched twice. It is unblocked: the canvas exists at design
+`0.3.1`, was read directly during this iteration, and S8 was built against it.
+
+Iteration 1 deliberately stopped **before** the agent adapter. Speech-to-text on screen is a
 complete, demonstrable thing on its own, and it is the half that carries the hardware, the
 permissions and the process boundaries — the half worth reviewing before anything is layered on
 top of it.
@@ -138,7 +143,7 @@ adapter is written; the port already makes one cheap when it is wanted.
   code: the reply envelope's `modelUsage` names a Haiku model, so the cheap tier is proved by
   the reply rather than assumed; and on a machine that has never signed in, the app says *"run
   `claude` in a terminal and log in"* instead of reporting an agent failure.
-- **Complexity:** 7 · **Parallelism:** PARALLEL (with S5, S6) · **Status:** PLANNED
+- **Complexity:** 7 · **Parallelism:** PARALLEL (with S5, S6) · **Status:** BUILT (awaiting acceptance) — the acceptance criterion is executed against the real CLI in `test/claude-cli-agent.test.ts`, including the two further checks: the reply's `modelUsage` names a Haiku model, and a machine with no keychain login gets its own setup failure
 
 ### S8 — the interface
 Scope: implement the approved design — the eight states, the talk control with its meter, the
@@ -147,24 +152,45 @@ locale that ships (English). No second locale, no switcher — see `docs/PLAN.md
 
 - **Acceptance:** *"UI: generate it with Claude Design … it looks intentional and is usable"*,
   and each artboard state is recognisable in the running app.
-- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S5) · **Status:** BLOCKED — waiting on
-  the design canvas being filled in and approved.
+- **Complexity:** 7 · **Parallelism:** SEQUENTIAL (after S5) · **Status:** BUILT (awaiting
+  acceptance) — **unblocked by reading the canvas.** The design project was reachable after all:
+  `Voice Desktop.dc.html` at design `0.3.1` was read directly, which settled every item
+  `docs/design/DESIGN-BRIEF.md` §12 had listed as unverifiable — the fifteen artboard names, the
+  error-code mapping, the copy, the absence of an `empty-speech` board, and the fact that the
+  canvas states no minimum window size.
 
 ### S9 — spoken reply *(stretch)*
 Scope: `MacSaySynthesizer` behind the port, plus the control that triggers it.
 
 - **Acceptance:** *"Stretch, only if you're inside the budget: the reply is spoken back."*
-- **Complexity:** 3 · **Parallelism:** PARALLEL (last) · **Status:** PLANNED — confirmed in
-  scope. It is the cheapest point the brief offers and it stays cheap: one adapter, one
-  control, no new dependency.
+- **Complexity:** 3 · **Parallelism:** PARALLEL (last) · **Status:** BUILT (awaiting acceptance)
+  — it stayed as cheap as promised: `MacSaySynthesizer` behind the port, one `Speak reply`
+  control on the reply, no new dependency. A voice that will not start withdraws the control
+  rather than failing the turn, which is what `SpeechOutcome`'s third value exists for.
 
 ### S10 — the one end-to-end
-Scope: a single Playwright `_electron` launch that starts the real app, asserts the preload
-bridge exists, and puts one round trip across the real IPC seam.
+Scope: a single real Electron launch that starts the app shell, asserts the preload bridge
+exists, and puts one round trip across the real IPC seam.
+
+**Built as `test/preload-bridge.test.ts` plus `test/fixtures/bridge-probe.cjs`, not with
+Playwright.** The launch already existed for S4 and does the three things only a launched app
+can show: a sandboxed preload has no module resolver, so a preload that typechecks and bundles
+can still fail at load and leave `window.voicedesk` undefined; the Content-Security-Policy is a
+header and so exists only when something serves it; and the seam itself is renderer → preload →
+`ipcMain.handle` → back. Adding Playwright would have bought a second launcher for a launch this
+repository already performs.
+
+**What that cut stops catching**, recorded rather than left implied: nothing drives the UI as a
+user does. There is no test that presses the talk control, holds `Space`, or reads what the
+window renders, so a control wired to the wrong handler, a state that renders the wrong pane, or
+a button that is disabled when it should not be will not redden anything. The seam is gated; the
+interaction is not.
 
 - **Acceptance:** something in this project executes in the renderer, so a CSP or preload-wiring
   defect has a gate in front of it.
-- **Complexity:** 4 · **Parallelism:** SEQUENTIAL (after S4, S5) · **Status:** PLANNED
+- **Complexity:** 4 · **Parallelism:** SEQUENTIAL (after S4, S5) · **Status:** BUILT (awaiting
+  acceptance) — **and delivered without Playwright**, which is a cut that names its own cost
+  below.
 
 ### S11 — the README
 Scope: install from zero on a Mac that has nothing; run; what works; what was cut and what that
@@ -174,7 +200,7 @@ versions, which is also the data behind the about panel.
 - **Acceptance:** *"It runs on a clean machine following your README"* and *"A README that tells
   the truth"*.
 - **Complexity:** 4 · **Parallelism:** SEQUENTIAL (written incrementally from S1 onward, closed
-  last) · **Status:** IN PROGRESS
+  last) · **Status:** BUILT (awaiting acceptance)
 
 ---
 
@@ -220,4 +246,4 @@ it is promised, and the README does not claim any of it.
 | F6 | **Second agent adapter** (`codex exec`, `cursor-agent -p`) | the port exists from day one, so this is an adapter and a line in the composition root — cheap later, wasted now |
 | F7 | **Second language** | the lookup table and `t()` ship in this build; a locale is a JSON file and a switch |
 | F8 | **Global hold-to-talk** while another app is focused | needs a native keyboard hook rebuilt per Electron version plus an Accessibility permission — see `docs/PLAN.md` §12 |
-| F9 | **Running the agent on a larger model tier** | not an omission: `--model haiku` is pinned on purpose because this is a demonstration build and an expensive tier must not be reachable by accident. `VOICEDESK_AGENT_MODEL` exists so an operator can opt in deliberately; nothing in this delivery raises the tier by itself, and no quality claim is made for one that does |
+| F9 | **Running the agent on a larger model tier** | not an omission: `haiku` is the default on purpose because this is a demonstration build and an expensive tier must not be reachable by accident. `VOICEDESK_AGENT_MODEL` is now a three-value enumeration — `haiku`, `sonnet`, `opus` — so an operator opts in **deliberately and by name**, and a typo is refused with a setup failure listing the legal values rather than silently substituting the default. Nothing in this delivery raises the tier by itself, and no quality claim is made for one that does; `haiku` is the only tier this build has been exercised on |

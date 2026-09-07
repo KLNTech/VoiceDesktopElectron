@@ -13,7 +13,7 @@
     "postinstall": "node scripts/postinstall.mjs",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "docs:pdf": "scripts/docs-pdf.sh docs/voicedesk-architecture.pdf 'VoiceDesk — architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
+    "docs:pdf": "scripts/docs-pdf.sh docs/voicedeskelectron-architecture.pdf 'VoiceDeskElectron — architecture' docs/PLAN.md docs/WORK-BREAKDOWN.md",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "oxlint --type-aware",
