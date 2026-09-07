@@ -1,8 +1,38 @@
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import type { RollupLog } from 'rollup'
 
 import pkg from './package.json' with { type: 'json' }
+
+/**
+ * Silences one third-party warning, and nothing else.
+ *
+ * Every build prints two copies of this, from `zod/v4/core/regexes.js` and
+ * `zod/v4/core/util.js`: *"contains an annotation that Rollup cannot interpret due to the
+ * position of the comment"*. Zod annotates a few initializers with `@__PURE__` so esbuild can
+ * tree-shake them, and puts an explanatory JSDoc block between the annotation and the
+ * expression — a position esbuild accepts and Rollup does not. Rollup then says what it is
+ * going to do about it: *"The comment will be removed to avoid issues"*. Nothing is broken.
+ *
+ * **Why this is not fixed where it is written.** The obvious move is to edit that comment in
+ * `node_modules/`. It would work, and it would last exactly until the next `npm ci` — which is
+ * every clean install, every CI run and `npm run verify:clone`, whose entire job is to prove the
+ * repository does not depend on anything that only exists on this machine. An edit there is a
+ * local difference that the clone check is designed to catch.
+ *
+ * So the warning is filtered here, narrowly: only this code, and only for files inside
+ * `node_modules`. A warning about OUR code with the same code still prints, which is the
+ * property that makes this a filter rather than a mute button.
+ */
+function ignoreThirdPartyAnnotations(
+  warning: RollupLog,
+  warn: (warning: RollupLog) => void,
+): void {
+  const fromDependency = warning.id?.includes('node_modules') === true
+  if (warning.code === 'INVALID_ANNOTATION' && fromDependency) return
+  warn(warning)
+}
 
 /**
  * Three build outputs, one per process, because they are three different runtimes with three
@@ -13,7 +43,10 @@ import pkg from './package.json' with { type: 'json' }
 export default defineConfig({
   main: {
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } },
+      rollupOptions: {
+        input: { index: resolve(__dirname, 'src/main/index.ts') },
+        onwarn: ignoreThirdPartyAnnotations,
+      },
     },
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
@@ -21,7 +54,10 @@ export default defineConfig({
   },
   preload: {
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/preload/index.ts') } },
+      rollupOptions: {
+        input: { index: resolve(__dirname, 'src/preload/index.ts') },
+        onwarn: ignoreThirdPartyAnnotations,
+      },
     },
     /*
      * The preload must be SELF-CONTAINED.
@@ -39,7 +75,10 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } },
+      rollupOptions: {
+        input: { index: resolve(__dirname, 'src/renderer/index.html') },
+        onwarn: ignoreThirdPartyAnnotations,
+      },
       /*
        * The AudioWorklet must be emitted as a FILE, never inlined.
        *
