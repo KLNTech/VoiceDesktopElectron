@@ -64,13 +64,30 @@ export class WhisperCppTranscriber implements Transcriber {
     try {
       await writeFile(wavPath, encodeWav(clip.samples, clip.sampleRate))
 
-      await run(
-        this.binPath,
-        // An argv array, never a shell: none of these values is ever quoted, so none can be
-        // mis-quoted. `-l en` matches the English-only model the README installs by default.
-        ['-m', this.modelPath, '-f', wavPath, '-oj', '-of', outBase, '-np', '-l', 'en'],
-        { timeout: this.timeoutMs, maxBuffer: 8 << 20, signal },
-      )
+      /*
+       * Two `try` blocks, because Node stamps `ENOENT` on BOTH "there is no such program" and
+       * "there is no such file", and `classify` cannot tell them apart from the error alone.
+       *
+       * With the run and the read in one block, a whisper that started, worked, and simply did
+       * not write its output where we looked — a renamed `-oj`/`-of` flag in a new release, a
+       * full temp filesystem — came back as *"whisper-cli could not be run. Reinstall it with
+       * `brew install whisper-cpp`"*. The user is sent to reinstall something that is installed
+       * correctly, and the message names the one thing that is definitely not wrong. That is the
+       * exact inversion of what this file's own header says it is for.
+       *
+       * Only the spawn is allowed to mean "your machine needs something installed".
+       */
+      try {
+        await run(
+          this.binPath,
+          // An argv array, never a shell: none of these values is ever quoted, so none can be
+          // mis-quoted. `-l en` matches the English-only model the README installs by default.
+          ['-m', this.modelPath, '-f', wavPath, '-oj', '-of', outBase, '-np', '-l', 'en'],
+          { timeout: this.timeoutMs, maxBuffer: 8 << 20, signal },
+        )
+      } catch (error) {
+        return failed(this.classifySpawn(error))
+      }
 
       const raw: unknown = JSON.parse(await readFile(`${outBase}.json`, 'utf8'))
       const segments = WhisperOutput.parse(raw).transcription ?? []
@@ -81,7 +98,9 @@ export class WhisperCppTranscriber implements Transcriber {
 
       return succeeded({ text, heldMs: clip.heldMs })
     } catch (error) {
-      return failed(this.classify(error))
+      // Everything after the spawn: the output file, its JSON, its shape. The run itself
+      // finished, so whatever this is, it is not a missing binary.
+      return failed({ kind: 'transcribe-failed', stderr: readOutputFailure(error, outBase) })
     } finally {
       /*
        * Runs on every path, including the aborted one: a temp directory per turn otherwise
@@ -106,7 +125,8 @@ export class WhisperCppTranscriber implements Transcriber {
     }
   }
 
-  private classify(error: unknown): Parameters<typeof failed>[0] {
+  /** Only ever given a rejection from the spawn itself, which is what makes ENOENT readable. */
+  private classifySpawn(error: unknown): Parameters<typeof failed>[0] {
     // Every field this reads, and the three traps in them, are documented once in
     // `spawn-failure.ts` — including why an abort and a deadline cannot be told apart here.
     const failure = readSpawnFailure(error)
@@ -126,6 +146,23 @@ export class WhisperCppTranscriber implements Transcriber {
     }
     return { kind: 'transcribe-failed', stderr: failure.detail }
   }
+}
+
+/**
+ * Says what went wrong AFTER whisper ran, in words that name the right thing.
+ *
+ * The missing-output case is the one worth spelling out: it is the failure that used to be
+ * reported as a missing binary, and the sentence has to make clear that the program ran.
+ */
+function readOutputFailure(error: unknown, outBase: string): string {
+  const code = error instanceof Error ? Reflect.get(error, 'code') : undefined
+  if (code === 'ENOENT') {
+    return `whisper-cli ran but wrote no transcript at ${outBase}.json. It is installed; something stopped it writing — check free space in the temp directory, and that this build still accepts the -oj and -of flags.`
+  }
+  if (error instanceof SyntaxError) {
+    return `whisper-cli wrote ${outBase}.json but it is not JSON: ${error.message}`
+  }
+  return error instanceof Error ? error.message : String(error)
 }
 
 function exists(path: string): boolean {
