@@ -94,12 +94,19 @@ void app.whenReady().then(async () => {
     // \`new Function\`, where parsing a bare string does not. The preload parses inbound pushes,
     // so if the policy blocked code generation this is where it would surface.
     let cspBlocksApp = null
+    const pushed = []
+    let unsubscribe = null
     try {
-      bridge.onTurnState(() => {})
+      unsubscribe = bridge.onTurnState((state) => { pushed.push(state) })
       cspBlocksApp = false
     } catch (error) {
       cspBlocksApp = String(error && error.message ? error.message : error)
     }
+
+    // Tell main we are listening, and wait for the pushes it sends back. The delivered ones are
+    // read afterwards by \`window.__probePushes\`.
+    window.__probePushed = pushed
+    window.__probeUnsubscribe = unsubscribe
 
     return {
       bridgeType: typeof bridge,
@@ -114,7 +121,41 @@ void app.whenReady().then(async () => {
     }
   })()`)
 
-  console.log('PROBE ' + JSON.stringify({ ...seen, preloadErrors: errors }))
+  /*
+   * The OTHER half of the preload's contract, which nothing exercised.
+   *
+   * `onTurnState` runs every inbound push through `TurnStatePush.safeParse` and drops what does
+   * not parse — main is not implicitly trusted either. Delete that `if` and no test noticed:
+   * grep across `test/` found `TurnStatePush`, `safeParse` and the internal handler called by
+   * nothing. So main pushes four payloads here — two legal, two that must never reach a
+   * listener — and the page reports which ones arrived.
+   */
+  const sent = [
+    { k: 'thinking' },
+    { k: 'not-a-state' },
+    { k: 'recording', startedAt: 'soon', level: 0 },
+    { k: 'recording', startedAt: 1, level: 0.5 },
+  ]
+  for (const payload of sent) win.webContents.send('turn:state', payload)
+
+  const delivered = await win.webContents.executeJavaScript(
+    `new Promise((resolve) => setTimeout(() => resolve(window.__probePushed), 150))`,
+  )
+
+  // And the unsubscribe the bridge hands back has to actually detach, or a remounting component
+  // leaks a listener per mount.
+  await win.webContents.executeJavaScript(
+    `(() => { window.__probeUnsubscribe(); window.__probePushed.length = 0; return null })()`,
+  )
+  win.webContents.send('turn:state', { k: 'idle' })
+  const afterUnsubscribe = await win.webContents.executeJavaScript(
+    `new Promise((resolve) => setTimeout(() => resolve(window.__probePushed), 150))`,
+  )
+
+  console.log(
+    'PROBE ' +
+      JSON.stringify({ ...seen, preloadErrors: errors, pushesDelivered: delivered, afterUnsubscribe }),
+  )
   app.quit()
   return undefined
 })

@@ -58,7 +58,7 @@
   "err.openSettings": "Open System Settings",
   "err.copyInstall": "Copy install command",
   "err.mic.deniedTitle": "Microphone access is off",
-  "err.mic.deniedBody": "VoiceDesk needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone.",
+  "err.mic.deniedBody": "VoiceDesk needs the microphone to hear you. Turn it on in System Settings → Privacy & Security → Microphone, then quit and reopen the app — macOS applies the change to a running app only after it restarts.",
   "err.mic.retryTitle": "The microphone was not allowed",
   "err.mic.retryBody": "Nothing was recorded. Hold the control again and allow access when macOS asks.",
   "err.mic.noneTitle": "No microphone found",

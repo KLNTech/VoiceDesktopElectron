@@ -6,6 +6,7 @@ import {
   type AppInfoRes,
   type AskReq,
   type AskRes,
+  type MicAccessRes,
   type NotesListRes,
   type SpeakReq,
   type SpeakRes,
@@ -32,6 +33,8 @@ const bridge: VoiceDeskBridge = {
   appInfo: (): Promise<AppInfoRes> => ipcRenderer.invoke(CH.appInfo),
 
   notes: (): Promise<NotesListRes> => ipcRenderer.invoke(CH.notes),
+
+  micAccess: (): Promise<MicAccessRes> => ipcRenderer.invoke(CH.micAccess),
 
   openSettings: (): Promise<void> => ipcRenderer.invoke(CH.openSettings),
 

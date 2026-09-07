@@ -1,9 +1,10 @@
-import { ipcMain, shell, type BrowserWindow } from 'electron'
+import { ipcMain, shell, systemPreferences, type BrowserWindow } from 'electron'
 
 import {
   AppInfoRes,
   AskReq,
   CH,
+  MicAccessRes,
   NotesListRes,
   SpeakReq,
   TranscribeReq,
@@ -77,6 +78,24 @@ export function registerIpcHandlers(env: Env, ports: Ports): void {
    */
   ipcMain.handle(CH.notes, async (): Promise<NotesListRes> => {
     return NotesListRes.parse({ files: await ports.notes.list() })
+  })
+
+  /**
+   * What macOS says about the microphone — the only side of the app that can find out.
+   *
+   * The renderer classified a denial from `navigator.permissions.query`, which answers about
+   * CHROMIUM's per-origin permission. macOS's own decision is not visible from a page at all, so
+   * a user who had switched the permission off in System Settings was told to *"hold the control
+   * again and allow access when macOS asks"* — and macOS never asks again once the answer is
+   * recorded. The advice was a loop with no exit.
+   *
+   * `getMediaAccessStatus` does not prompt and does not spawn anything; it reads TCC's answer.
+   */
+  ipcMain.handle(CH.micAccess, async (): Promise<MicAccessRes> => {
+    // macOS-only API. The app is macOS-only too, but saying so twice is cheaper than a crash on
+    // a platform where this app is not supported and the pane it points at does not exist.
+    if (process.platform !== 'darwin') return 'unknown'
+    return MicAccessRes.parse(systemPreferences.getMediaAccessStatus('microphone'))
   })
 
   /**

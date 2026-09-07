@@ -14,6 +14,7 @@ export const CH = {
   speak: 'turn:speak',
   appInfo: 'app:info',
   notes: 'notes:list',
+  micAccess: 'os:mic-access',
   openSettings: 'os:open-settings',
   state: 'turn:state',
 } as const
@@ -126,6 +127,26 @@ export const AppInfoRes = z.object({
   notices: z.array(NoticeSchema),
 })
 
+/**
+ * What macOS itself says about this app's microphone permission.
+ *
+ * This is TCC's answer, from `systemPreferences.getMediaAccessStatus('microphone')` in main —
+ * not Chromium's. The renderer's `navigator.permissions.query({ name: 'microphone' })` reports
+ * the browser's own per-origin state, which is a different thing from whether the operating
+ * system will let this process open an input device, and it is the state the app was reading.
+ *
+ * `unknown` is here because this app is macOS-only but the API is not: on any other platform the
+ * value would be a guess, and a guess is exactly what sends a user to a settings pane that does
+ * not exist.
+ */
+export const MicAccessRes = z.enum([
+  'not-determined',
+  'granted',
+  'denied',
+  'restricted',
+  'unknown',
+])
+
 export const TurnStatePush = z.discriminatedUnion('k', [
   z.object({ k: z.literal('idle') }),
   z.object({ k: z.literal('recording'), startedAt: z.number(), level: z.number() }),
@@ -145,6 +166,7 @@ export type AppInfoRes = z.infer<typeof AppInfoRes>
 export type NoteFileSchema = z.infer<typeof NoteFileSchema>
 export type NotesListRes = z.infer<typeof NotesListRes>
 export type NoticeSchema = z.infer<typeof NoticeSchema>
+export type MicAccessRes = z.infer<typeof MicAccessRes>
 export type TurnStatePush = z.infer<typeof TurnStatePush>
 
 /**
@@ -159,6 +181,15 @@ export interface VoiceDeskBridge {
   appInfo(): Promise<AppInfoRes>
   /** The notes folder as it stands right now, so the panel has rows before any turn runs. */
   notes(): Promise<NotesListRes>
+  /**
+   * What the OPERATING SYSTEM says about the microphone, which the page cannot find out itself.
+   *
+   * The renderer's own Permissions API answers about Chromium's per-origin permission; macOS's
+   * TCC decision is invisible from there. Reading the wrong one is what sent a user whose
+   * permission was switched off in System Settings to "hold the control again and allow access
+   * when macOS asks" — a prompt macOS will never show again, because the answer is recorded.
+   */
+  micAccess(): Promise<MicAccessRes>
   /**
    * Opens macOS's microphone privacy pane — the action the design gives the mic-denied board.
    *

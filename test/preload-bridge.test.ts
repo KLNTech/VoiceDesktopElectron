@@ -33,6 +33,10 @@ const Probe = z.object({
   roundTripError: z.string().nullable(),
   /** `false` when the policy let the app's own code run; a string is the error it raised. */
   cspBlocksApp: z.union([z.boolean(), z.string()]).nullable(),
+  /** What reached the page's listener out of four pushes main sent, two of them malformed. */
+  pushesDelivered: z.array(z.unknown()),
+  /** What reached it after the unsubscribe the bridge handed back was called. */
+  afterUnsubscribe: z.array(z.unknown()),
 })
 type Probe = z.infer<typeof Probe>
 
@@ -58,10 +62,31 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
 
   it('exposes exactly one named method per declared channel, and nothing else', () => {
     expect(seen.methods).toEqual(
-      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'openSettings', 'onTurnState'].toSorted(),
+      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'micAccess', 'openSettings', 'onTurnState'].toSorted(),
     )
     // The bridge must stay enumerable: one method per message, no more.
     expect(seen.methods).toHaveLength(Object.keys(CH).length)
+  })
+
+  /**
+   * The push direction, which was the half of S4 nothing checked.
+   *
+   * `onTurnState` parses every inbound payload and drops what does not match — main is not
+   * implicitly trusted either. Removing that `if` broke no test: a grep across `test/` found
+   * `TurnStatePush`, `safeParse` and the handler itself called by nothing at all. Main pushes
+   * four payloads at this launch, two of them malformed.
+   */
+  it('delivers the pushes that parse and drops the ones that do not', () => {
+    expect(seen.pushesDelivered).toEqual([
+      { k: 'thinking' },
+      { k: 'recording', startedAt: 1, level: 0.5 },
+    ])
+  })
+
+  it('stops delivering after the unsubscribe it handed back is called', () => {
+    // A component that remounts and cannot detach leaks one listener per mount, and the leak is
+    // invisible until the same push is rendered several times.
+    expect(seen.afterUnsubscribe).toEqual([])
   })
 
   it('leaks neither ipcRenderer nor Node into the page', () => {

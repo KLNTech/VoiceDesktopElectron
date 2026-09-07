@@ -45,7 +45,7 @@ const clip: AudioClip = { samples: new Float32Array(16_000), sampleRate: 16_000,
  */
 const OUT_BASE = '$7'
 
-async function transcribeWith(binPath: string | null): Promise<ReturnType<typeof describe> | unknown> {
+async function transcribeWith(binPath: string | null): Promise<unknown> {
   const transcriber = new WhisperCppTranscriber(binPath, model, 10_000)
   return transcriber.transcribe(clip, AbortSignal.timeout(10_000))
 }

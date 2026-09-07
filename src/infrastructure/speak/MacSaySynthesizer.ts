@@ -28,7 +28,7 @@ export class MacSaySynthesizer implements SpeechSynthesizer {
     private readonly binPath: string | null,
     private readonly timeoutMs = 120_000,
     /** `VOICEDESK_SAY_VOICE`: an operator naming a voice outranks anything decided here. */
-    private readonly voiceOverride: string | undefined = undefined,
+    private readonly voiceOverride?: string,
   ) {}
 
   /**
