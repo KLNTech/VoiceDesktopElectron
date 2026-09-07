@@ -7,11 +7,10 @@
  *  1. A sandboxed preload has no module resolver, so a preload can typecheck, bundle, and still
  *     fail at load with "module not found" — leaving `window.voicedesk` undefined and every
  *     call throwing on `undefined`, which presents as a hang rather than an error.
- *  2. The Content-Security-Policy is a HEADER, so it exists only when something serves it. It is
- *     installed below exactly as `src/main/index.ts` installs it, because the defect it catches
- *     is a library that compiles code at runtime: zod JIT-compiles object validators with
- *     `new Function`, the policy has no `'unsafe-eval'`, and a Node test cannot reproduce that
- *     because Node allows eval.
+ *  2. The Content-Security-Policy is a HEADER, so it exists only when something serves it, and
+ *     the page below is loaded under the production one. A policy that broke the app's own code
+ *     would show up here as a preload error or a failed round trip, neither of which a Node test
+ *     can produce.
  *  3. A round trip over the real seam — renderer → preload → `ipcMain.handle` → back — which is
  *     the wiring no unit test touches.
  */
@@ -90,17 +89,6 @@ void app.whenReady().then(async () => {
       roundTripError = String(error && error.message ? error.message : error)
     }
 
-    // zod's JIT is the CSP's real target: parsing an OBJECT compiles a validator with
-    // \`new Function\`, where parsing a bare string does not. The preload parses inbound pushes,
-    // so if the policy blocked code generation this is where it would surface.
-    let cspBlocksApp = null
-    try {
-      bridge.onTurnState(() => {})
-      cspBlocksApp = false
-    } catch (error) {
-      cspBlocksApp = String(error && error.message ? error.message : error)
-    }
-
     return {
       bridgeType: typeof bridge,
       methods: bridge ? Object.keys(bridge).sort() : [],
@@ -110,7 +98,6 @@ void app.whenReady().then(async () => {
       nodeLeaked: typeof window.process !== 'undefined' || typeof window.module !== 'undefined',
       roundTrip,
       roundTripError,
-      cspBlocksApp,
     }
   })()`)
 

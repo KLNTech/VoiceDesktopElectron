@@ -2,10 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 import {
   CH,
-  TurnStatePush,
   type AppInfoRes,
   type AskReq,
   type AskRes,
+  type MicAccessRes,
   type NotesListRes,
   type SpeakReq,
   type SpeakRes,
@@ -33,20 +33,9 @@ const bridge: VoiceDeskBridge = {
 
   notes: (): Promise<NotesListRes> => ipcRenderer.invoke(CH.notes),
 
-  openSettings: (): Promise<void> => ipcRenderer.invoke(CH.openSettings),
+  micAccess: (): Promise<MicAccessRes> => ipcRenderer.invoke(CH.micAccess),
 
-  onTurnState: (listener) => {
-    const handler = (_event: unknown, payload: unknown): void => {
-      // Main is not implicitly trusted either: the push is parsed on arrival, and a malformed
-      // one is dropped rather than rendered.
-      const parsed = TurnStatePush.safeParse(payload)
-      if (parsed.success) listener(parsed.data)
-    }
-    ipcRenderer.on(CH.state, handler)
-    return () => {
-      ipcRenderer.off(CH.state, handler)
-    }
-  },
+  openSettings: (): Promise<void> => ipcRenderer.invoke(CH.openSettings),
 }
 
 contextBridge.exposeInMainWorld('voicedesk', bridge)

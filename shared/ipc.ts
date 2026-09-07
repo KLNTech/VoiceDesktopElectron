@@ -14,8 +14,8 @@ export const CH = {
   speak: 'turn:speak',
   appInfo: 'app:info',
   notes: 'notes:list',
+  micAccess: 'os:mic-access',
   openSettings: 'os:open-settings',
-  state: 'turn:state',
 } as const
 
 export type Channel = (typeof CH)[keyof typeof CH]
@@ -126,14 +126,44 @@ export const AppInfoRes = z.object({
   notices: z.array(NoticeSchema),
 })
 
-export const TurnStatePush = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('idle') }),
-  z.object({ k: z.literal('recording'), startedAt: z.number(), level: z.number() }),
-  z.object({ k: z.literal('transcribing') }),
-  z.object({ k: z.literal('thinking') }),
-  z.object({ k: z.literal('speaking') }),
-  z.object({ k: z.literal('error'), failure: TurnFailureSchema }),
+/**
+ * What macOS itself says about this app's microphone permission.
+ *
+ * This is TCC's answer, from `systemPreferences.getMediaAccessStatus('microphone')` in main —
+ * not Chromium's. The renderer's `navigator.permissions.query({ name: 'microphone' })` reports
+ * the browser's own per-origin state, which is a different thing from whether the operating
+ * system will let this process open an input device, and it is the state the app was reading.
+ *
+ * `unknown` is here because this app is macOS-only but the API is not: on any other platform the
+ * value would be a guess, and a guess is exactly what sends a user to a settings pane that does
+ * not exist.
+ */
+export const MicAccessRes = z.enum([
+  'not-determined',
+  'granted',
+  'denied',
+  'restricted',
+  'unknown',
 ])
+
+/*
+ * There is no `TurnStatePush`, and no `turn:state` channel, ON PURPOSE.
+ *
+ * Both existed here, complete: a schema, a `pushTurnState` in main, an `onTurnState` on the
+ * bridge with an unsubscribe, and a `safeParse` guard on arrival. Nothing called any of it —
+ * `pushTurnState` had zero call sites, and the renderer never subscribed. The suite was green
+ * on a wire that was disconnected at both ends.
+ *
+ * It is deleted rather than wired up because wiring it up is the wrong direction. `docs/PLAN.md`
+ * §11 commits to *one state machine, held in one hook*, and the renderer runs it locally because
+ * §2 needs a key press to change the interface with no round trip. A push from main would be a
+ * SECOND source of the same state, and two sources of one state is the defect, not the feature.
+ *
+ * What the deletion costs, recorded rather than left implied: if main ever needs to tell the
+ * window something it did not ask for — a deadline that fired between turns, a device that
+ * disappeared — there is now no channel for it and one will have to be added back, with a real
+ * consumer written in the same change.
+ */
 
 export type TranscribeReq = z.infer<typeof TranscribeReq>
 export type TranscribeRes = z.infer<typeof TranscribeRes>
@@ -145,7 +175,7 @@ export type AppInfoRes = z.infer<typeof AppInfoRes>
 export type NoteFileSchema = z.infer<typeof NoteFileSchema>
 export type NotesListRes = z.infer<typeof NotesListRes>
 export type NoticeSchema = z.infer<typeof NoticeSchema>
-export type TurnStatePush = z.infer<typeof TurnStatePush>
+export type MicAccessRes = z.infer<typeof MicAccessRes>
 
 /**
  * The whole surface the renderer is given. One named method per message: `ipcRenderer` is never
@@ -160,6 +190,15 @@ export interface VoiceDeskBridge {
   /** The notes folder as it stands right now, so the panel has rows before any turn runs. */
   notes(): Promise<NotesListRes>
   /**
+   * What the OPERATING SYSTEM says about the microphone, which the page cannot find out itself.
+   *
+   * The renderer's own Permissions API answers about Chromium's per-origin permission; macOS's
+   * TCC decision is invisible from there. Reading the wrong one is what sent a user whose
+   * permission was switched off in System Settings to "hold the control again and allow access
+   * when macOS asks" — a prompt macOS will never show again, because the answer is recorded.
+   */
+  micAccess(): Promise<MicAccessRes>
+  /**
    * Opens macOS's microphone privacy pane — the action the design gives the mic-denied board.
    *
    * It takes NO argument, deliberately. A `openExternal(url)` on the bridge would hand the
@@ -167,6 +206,4 @@ export interface VoiceDeskBridge {
    * than "show the user where the switch is". Main owns the one URL.
    */
   openSettings(): Promise<void>
-  /** Returns its own unsubscribe — a remounting component that cannot detach leaks a listener. */
-  onTurnState(listener: (state: TurnStatePush) => void): () => void
 }

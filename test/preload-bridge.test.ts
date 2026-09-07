@@ -31,8 +31,6 @@ const Probe = z.object({
   /** `true` when the reply came back from the real main process, over the real channel. */
   roundTrip: z.boolean().nullable(),
   roundTripError: z.string().nullable(),
-  /** `false` when the policy let the app's own code run; a string is the error it raised. */
-  cspBlocksApp: z.union([z.boolean(), z.string()]).nullable(),
 })
 type Probe = z.infer<typeof Probe>
 
@@ -58,7 +56,7 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
 
   it('exposes exactly one named method per declared channel, and nothing else', () => {
     expect(seen.methods).toEqual(
-      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'openSettings', 'onTurnState'].toSorted(),
+      ['transcribe', 'ask', 'speak', 'appInfo', 'notes', 'micAccess', 'openSettings'].toSorted(),
     )
     // The bridge must stay enumerable: one method per message, no more.
     expect(seen.methods).toHaveLength(Object.keys(CH).length)
@@ -83,15 +81,22 @@ describe('the preload bridge, in a real sandboxed renderer', () => {
   })
 
   /**
-   * The production Content-Security-Policy is installed in the probe, because a policy is a
-   * HEADER and therefore does not exist unless something serves it.
+   * Everything above happens under the PRODUCTION Content-Security-Policy, which the probe
+   * installs because a policy is a header and therefore does not exist unless something serves
+   * it. A policy that refused the app's own code shows up here as a preload error or a failed
+   * round trip.
    *
-   * The defect this is in front of has happened here: zod JIT-compiles object validators with
-   * `new Function`, the policy has no `'unsafe-eval'`, and the preload parses inbound pushes
-   * with one. Under Node — where `vitest` runs and eval is allowed — every test stayed green
-   * while every IPC reply failed to parse inside the window.
+   * **What stopped being covered when the `turn:state` channel was deleted**, recorded rather
+   * than left implied: this file used to assert specifically that zod's `new Function` was not
+   * refused under a policy with no `'unsafe-eval'` — the preload JIT-compiled a validator every
+   * time it parsed an inbound push. With the push gone, the preload no longer parses anything in
+   * the renderer process, so that particular eval no longer happens and the assertion had
+   * nothing left to assert. If a future change makes the preload parse in the page again, the
+   * check that eval survives the policy has to come back with it; nothing here will notice on
+   * its own.
    */
-  it('runs the app\'s own code under the real policy, with no eval refused', () => {
-    expect(seen.cspBlocksApp).toBe(false)
+  it('loads the page and the bridge under the real policy', () => {
+    expect(seen.preloadErrors).toEqual([])
+    expect(seen.roundTrip).toBe(true)
   })
 })

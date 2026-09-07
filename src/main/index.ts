@@ -3,6 +3,7 @@ import { app, BrowserWindow, session } from 'electron'
 
 import { buildPorts, readEnv } from './composition-root'
 import { registerIpcHandlers } from './ipc'
+import { makeSingleWindow } from './single-window'
 import { createWindow } from './window'
 
 /**
@@ -42,12 +43,22 @@ function contentSecurityPolicy(isDev: boolean): string {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  let mainWindow: BrowserWindow | null = null
+  const showWindow = makeSingleWindow(() => {
+    const window = createWindow()
+    loadRenderer(window)
+    return window
+  })
 
+  /*
+   * A second launch shows the first one's window — and OPENS one if the user closed it.
+   *
+   * The guard is `app.isReady()` and not a null check: `second-instance` can arrive before the
+   * ready handler below has run, and `new BrowserWindow(...)` before `app.whenReady()` throws.
+   * Nothing is lost by returning — the ready path opens the window a moment later.
+   */
   app.on('second-instance', () => {
-    if (mainWindow === null) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    if (!app.isReady()) return
+    showWindow()
   })
 
   void (async () => {
@@ -66,15 +77,12 @@ if (!app.requestSingleInstanceLock()) {
     const env = readEnv(isDev, __APP_VERSION__)
     registerIpcHandlers(env, buildPorts(env))
 
-    mainWindow = createWindow()
-    loadRenderer(mainWindow)
+    showWindow()
 
     // macOS keeps the app alive with no windows; clicking the dock icon must bring one back.
+    // Same call as `second-instance`, because it is the same question.
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createWindow()
-        loadRenderer(mainWindow)
-      }
+      showWindow()
     })
   })()
 

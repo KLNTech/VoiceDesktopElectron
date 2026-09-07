@@ -177,7 +177,7 @@ function makeContext(): AudioContext {
  * at all, a denial they can still reverse in the page, and a denial that now lives in System
  * Settings. Collapsing them sends someone to the wrong screen.
  */
-async function classifyMicError(error: unknown): Promise<TurnFailure> {
+export async function classifyMicError(error: unknown): Promise<TurnFailure> {
   const name = error instanceof DOMException ? error.name : ''
 
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
@@ -189,18 +189,38 @@ async function classifyMicError(error: unknown): Promise<TurnFailure> {
   return { kind: 'transcribe-failed', stderr: `microphone: ${String(error)}` }
 }
 
-async function denialKind(): Promise<MicDenial> {
+export async function denialKind(): Promise<MicDenial> {
+  /*
+   * macOS first, Chromium second — and that order is the whole point.
+   *
+   * This asked `navigator.permissions.query` alone, which answers about CHROMIUM's per-origin
+   * permission. Whether the operating system will let this process open an input device is a
+   * different question, recorded in TCC, and invisible from a page. A user who had switched the
+   * microphone off in System Settings therefore got the `retryable` board — *"hold the control
+   * again and allow access when macOS asks"* — for a prompt macOS will never show again, because
+   * the answer is already recorded. Holding the control again produced the same board. There was
+   * no exit.
+   */
+  try {
+    const os = await window.voicedesk.micAccess()
+    if (os === 'denied' || os === 'restricted') return 'system-settings'
+    // `not-determined` genuinely IS retryable: nobody has answered the prompt yet.
+    if (os === 'granted' || os === 'not-determined') return 'retryable'
+  } catch {
+    // The bridge is unreachable. Fall through rather than deciding on a failed question.
+  }
+
   try {
     const status = await navigator.permissions.query({ name: 'microphone' })
     return status.state === 'denied' ? 'system-settings' : 'retryable'
   } catch {
-    // A browser that cannot answer is not evidence of a recorded denial; say the recoverable
+    // Neither side could answer. That is not evidence of a recorded denial; say the recoverable
     // thing, because it costs the user one retry rather than a wasted trip to System Settings.
     return 'retryable'
   }
 }
 
-function concat(chunks: readonly Float32Array[]): Float32Array {
+export function concat(chunks: readonly Float32Array[]): Float32Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   const all = new Float32Array(total)
   let at = 0

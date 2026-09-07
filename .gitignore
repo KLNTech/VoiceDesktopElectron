@@ -15,9 +15,30 @@ out/
 # ── the assistant's working directory ─────────────────────────────────────────
 # Local tooling only: it is symlinked to repos that exist on one machine, so shipping it
 # would hand the next person dangling links, and it is no part of the application.
+#
+# BOTH FORMS, and the bare one is not cosmetic. `.claude/` matches a directory and nothing else,
+# so the day this became a SYMLINK to the single shared copy — one source of truth for this
+# working copy and the clone beside it — git stopped ignoring it and offered to commit the link
+# itself. `.claude` matches the directory, the symlink, and a plain file of that name; `.claude/`
+# is kept beside it so the directory form stays visible to anyone reading this file.
+.claude
 .claude/
 CLAUDE.md
 .mcp.json
+
+# ── documents ─────────────────────────────────────────────────────────────────
+# Ignores NEW files under `docs/` — the review reports, renders and snapshots this project
+# generates locally and does not want offered for commit on every `git status`.
+#
+# What it does NOT do, and this is the part worth knowing: `.gitignore` has no effect on a file
+# git is already tracking. `docs/PLAN.md`, `docs/WORK-BREAKDOWN.md`, `docs/design/DESIGN-BRIEF.md`
+# and the architecture PDF stay tracked, stay in a fresh clone, and are still what the README
+# links to. Editing them still shows up as a change.
+#
+# The cost, recorded rather than left to be discovered: a document somebody genuinely wants in
+# the repository from now on has to be added with `git add -f`, and until they do, nothing will
+# mention that it is missing.
+docs/
 
 # ── the notes the app writes ──────────────────────────────────────────────────
 # The agent reads and writes here at runtime. It is user data, not source.
