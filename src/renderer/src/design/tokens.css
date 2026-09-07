@@ -3,12 +3,20 @@
  *
  * TAKEN, not invented. `docs/design/DESIGN-BRIEF.md` §11 puts the canvas in TRYB A: the design
  * consumes this system's tokens and the only layer it owns is `state-roles.css`. Every value
- * below is copied from the design project's own `_ds/industry-*/styles.css` and
+ * below is copied from the design project's own bound-system stylesheet (under `_ds/`) and
  * `state-roles.css` at design `0.3.1`. A colour that appears nowhere in the canvas is not one
  * this app gets to choose locally, so nothing here is a number somebody liked.
  *
  * The dark theme is composed only from existing steps of the same ramps — that is why dark is
  * a set of artboards (group D) rather than a filter applied at the end.
+ *
+ * NOTE — do not write a glob path in a comment in this file. CSS has no nested comments, so the
+ * two characters that end a directory glob are exactly the two that end a comment: this block
+ * once named the source as `_ds/industry-<star>/styles.css`, the comment terminated at that
+ * point, the rest of the sentence became stray tokens, and the parser discarded the entire
+ * `:root` rule that follows. Every token below vanished at runtime — the window painted black
+ * text on a black ground in Times, because `var(--color-text)` and `var(--font-body)` resolved
+ * to nothing — while the file still contained every declaration and the build stayed silent.
  */
 
 :root {
