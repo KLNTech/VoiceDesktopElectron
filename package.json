@@ -1,6 +1,6 @@
 {
   "name": "voicedeskelectron",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "VoiceDeskElectron — a macOS desktop assistant you talk to: hold a button, speak, release.",
   "author": "QuaqKLNTech",
