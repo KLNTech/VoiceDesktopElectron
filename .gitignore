@@ -16,11 +16,13 @@ out/
 # Local tooling only: it is symlinked to repos that exist on one machine, so shipping it
 # would hand the next person dangling links, and it is no part of the application.
 #
-# NO TRAILING SLASH, and that is not cosmetic. `.claude/` matches a directory and nothing else,
+# BOTH FORMS, and the bare one is not cosmetic. `.claude/` matches a directory and nothing else,
 # so the day this became a SYMLINK to the single shared copy — one source of truth for this
 # working copy and the clone beside it — git stopped ignoring it and offered to commit the link
-# itself. A bare `.claude` matches the directory, the symlink, and a plain file of that name.
+# itself. `.claude` matches the directory, the symlink, and a plain file of that name; `.claude/`
+# is kept beside it so the directory form stays visible to anyone reading this file.
 .claude
+.claude/
 CLAUDE.md
 .mcp.json
 

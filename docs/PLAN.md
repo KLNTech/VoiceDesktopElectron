@@ -140,18 +140,31 @@ everything and the arrows disappear.
 ### The rule is enforced by a test, not by this paragraph
 
 ```ts
-// test/architecture.test.ts
-const FORBIDDEN = /from\s+['"](electron|node:|fs|path|child_process|os)/
-test('domain/ stays pure', () => {
-  const files = globSync('src/domain/**/*.ts')
-  expect(files.length).toBeGreaterThan(0)        // the glob itself is a failure mode
-  expect(files.filter(f => FORBIDDEN.test(read(f)))).toEqual([])
-})
+// test/architecture.test.ts — shape only; the file is the authority
+const FORBIDDEN = [
+  { what: 'a static import of the platform',        pattern: /from\s*['"](…)['"]/ },
+  { what: 'a side-effect import (no `from`)',       pattern: /^\s*import\s*['"](…)['"]/m },
+  { what: 'a dynamic import',                       pattern: /import\s*\(\s*['"](…)['"]/ },
+  { what: 'a require',                              pattern: /require\s*\(\s*['"](…)['"]/ },
+  { what: 'the `process` global, which needs no import at all', pattern: /\bprocess\s*\.\s*(env|platform|…)\b/ },
+]
 ```
 
-The gate is proven by breaking it: add a forbidden import, watch it redden, remove it. A gate
-nobody has seen fail is not evidence. The non-empty assertion is there because the classic
-silent pass is a glob that matched nothing.
+**A list of patterns, not one regex, and that is the second version of this gate.** The first was
+a single `/from\s+['"](electron|node:|fs|path|child_process|os)/`, which catches an ordinary
+`import x from "electron"` and nothing else. This project shows the gate as its flagship example
+of *a rule that is true rather than merely written*, and the deliberate violation it was proven on
+was the easiest possible one. A side-effect `import "electron"`, an `await import("node:…")`, a
+`require`, any Node builtin outside that four written without the `node:` prefix, and
+`process.env` — which needs no import, so no import scan of any strictness would ever have found
+it — all walked straight through.
+
+The gate is proven by breaking it: every pattern is also checked against a sample that *should*
+trip it, so the suite can tell "the rule holds" from "the rule is a regex that matches nothing" —
+a typo in one alternation produces the second while looking exactly like the first. The non-empty
+assertion is there because the classic silent pass is a glob that matched nothing. And the same
+file now checks the other direction, which nothing checked at all: that nothing under
+`src/renderer/**` reaches `infrastructure`, `domain/ports` or `domain/usecases`.
 
 ### Composition root: exactly one
 
@@ -525,12 +538,26 @@ writing the same `notes/` is a bug that will not reproduce.
 ## 9. Version marker
 
 One SemVer number, in one place: the `version` field of `package.json`. It is read at build time
-and rendered in the window during development as `v<version> · dev`, so a test run shows at a glance
-whether the build on screen is the one just changed.
+and rendered in the window during development as `v<version> · dev`.
 
-**Bump policy for this project: every code change bumps the patch level**, which is stricter than
-the usual once-per-merge rule and is deliberate — the version badge is being used as a live
-signal during manual testing, so it has to move whenever the code does.
+**Bump policy: one bump per merge**, weighted by the size of the change — patch for a small one,
+minor for a backwards-compatible batch, major for a breaking one — written as the last commit on
+the branch, after sign-off and immediately before the merge. That is the organisation's standard
+cadence, and this project follows it.
+
+**This paragraph used to say something else**, and the record of that is worth more than a tidy
+rewrite. It said *every code change bumps the patch level*, on the argument that the badge was a
+live signal during manual testing and so had to move whenever the code did. That policy was never
+followed: the first batch ran to twelve commits and moved the version exactly once, `0.1.0 →
+0.2.0`, in a commit whose own message reads *"after sign-off, as the last commit before the
+merge"* — the standard cadence, to the letter. A rule that the work walked past twelve times in a
+row is not a rule; it is a paragraph.
+
+And the need behind it was real but misfiled. *"Is the window in front of me the build I just
+changed?"* is a question about a **commit**, not a release, and the two want to move at different
+rates. Overloading one canonical SemVer number with both jobs makes it useless for either. If the
+signal is wanted back, it is a short SHA beside the badge — cheap, exact, and it never has to be
+decided in a meeting.
 
 ---
 
